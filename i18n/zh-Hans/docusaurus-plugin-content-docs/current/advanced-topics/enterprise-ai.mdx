@@ -1,0 +1,192 @@
+---
+sidebar_position: 4
+title: "企业级 AI 开发"
+description: "学习在企业环境中为 AI 工具实现成本控制、安全审计和私有化部署策略。"
+---
+
+## 学习目标
+
+*   实现 Token 追踪和缓存策略，以优化 LLM 运营成本。
+*   配置 PII（个人身份信息）脱敏流水线，防止敏感数据泄露。
+*   使用容器化基础设施部署私有 LLM 实例。
+*   审计 AI 工作流中常见的企业级安全漏洞，例如 Prompt 注入。
+
+## 成本优化与 Token 管理
+
+在企业环境中，不受控制的 LLM 使用可能会导致巨大的意外支出。为了管理这一问题，你应该实施两种主要策略：**模型路由 (Model Routing)** 和 **语义缓存 (Semantic Caching)**。
+
+模型路由涉及在将请求发送到 LLM 之前分析其复杂度。分类或摘要等简单任务可以路由到更小、更便宜的模型 (SLMs)，而复杂的推理任务则发送到旗舰模型。语义缓存使用向量数据库来存储之前的“Prompt-响应”对。如果新 Prompt 与缓存中的内容语义相似，系统将返回缓存的响应，而不是进行昂贵的 API 调用。
+
+```python title="cache_manager.py"
+import hashlib
+
+class TokenManager:
+    def __init__(self, budget_limit: int):
+        self.budget_limit = budget_limit
+        self.current_usage = 0
+        self.semantic_cache = {}  # 在生产环境中，请使用 Redis 或 Milvus 等向量数据库
+
+    def check_budget(self, estimated_tokens: int) -> bool:
+        if self.current_usage + estimated_tokens > self.budget_limit:
+            return False
+        return True
+
+    def get_cached_response(self, prompt_embedding: list) -> str:
+        # 简化版：在现实中，应执行向量相似度搜索
+        prompt_hash = hashlibable_embedding(prompt_embedding)
+        return self.semantic_cache.get(prompt_hash, None)
+
+    def record_usage(self, tokens: int):
+        self.current_usage += tokens
+
+def hashlibable_embedding(embedding: list) -> str:
+    return hashlib.sha256(str(embedding).encode()).hexdigest()
+```
+
+:::tip
+对于常规的分类任务，优先使用“小语言模型 (SLMs)”，与旗舰模型相比，这最高可降低 90% 的成本。
+:::
+
+## 安全审计与数据隐私
+
+企业级 AI 应用必须遵守严格的数据隐私法规（如 GDPR 或 HIPAA）。最关键的风险是 PII 意外泄露到 LLM 的训练日志或第三方 API 提供商中。
+
+为了减轻这种风险，请实现一个 **PII 脱敏层 (PII Scrubbing Layer)**。该中间件位于你的应用逻辑与 LLM 提供商之间，拦截所有传出的 Prompt，并使用模式匹配或专门的 NLP 模型对电子邮件、信用卡号或社会安全号码等敏感信息进行脱敏处理。
+
+```python title="security_middleware.py"
+import re
+
+class PIIScrubber:
+    def __init__(self):
+        # 仅用于演示的简化正则表达式
+        self.patterns = {
+            "email": r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
+            "credit_card": r'\b(?:\d[ -]*?){13,16}\b'
+        }
+
+    def scrub(self, text: str) -> str:
+        scrubbed_text = text
+        for label, pattern in self.patterns.items():
+            scrubbed_text = re.sub(pattern, f"[REDACTED_{label.upper()}]", scrubbed_text)
+        return scrubbed_text
+
+# 使用示例
+scrubber = PIIScrubber()
+user_input = "请通过 john.doe@example.com 联系我，我的卡号是 4111-1111-1111-1111"
+safe_prompt = scrubber.scrub(user_input)
+print(f"脱敏后的 Prompt: {safe_prompt}")
+```
+
+:::warning
+切勿仅仅依赖系统提示词 (System Prompts) 来防止数据泄露；务必实现一个在 LLM 控制范围之外运行的程序化脱敏层。
+:::
+
+## 私有化部署架构
+
+在处理高度敏感的数据或面临严格的监管要求时，像 Azure OpenAI 这样的托管服务可能并不足够。在这种情况下，你必须在受控的自有基础设施 (VPC) 中部署私有 LLM 实例。
+
+主要有两种方法：
+1.  **托管私有端点 (Managed Private Endpoints)：** 使用通过 VPC 端点提供私密连接的云原生服务，确保流量永远不会经过公共互联网。
+2.  **自托管推理 (Self-Hosted Inference)：** 在你自己的 Kubernetes 集群上使用 **vLLM** 或 **Ollama** 等引擎运行模型。这提供了最大的控制权，但需要管理 GPU 资源和扩缩容。
+
+```yaml title="vllm-deployment.yaml"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-inference-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      containers:
+      - name: vllm-container
+        image: vllm/vllm-openai:latest
+        args: ["--model", "meta-llama/Llama-3-8B-Instruct"]
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        ports:
+        - containerPort: 8000
+```
+
+## 实战演练：企业级 AI 网关流程
+
+“企业级 AI 网关 (Enterprise AI Gateway)”模式将所有的安全、成本和路由逻辑集中到一个单一的入口点。这确保了任何请求在未经过审计之前都不会到达 LLM。
+
+```text title="端到端：企业级 AI 网议流程"
+用户："请为患者 Jane Doe (ID: 9982) 总结我的医疗报告。"
+
+步骤 1 → 安全层：PII 脱敏器识别出 'Jane Doe' 和 '9982' 为敏感信息。
+        操作：将输入脱敏为 "请为患者 [REDACTED] (ID: [REDACTED]) 总结我的医疗报告。"
+
+步骤 2 → 缓存检查：系统为脱敏后的 Prompt 生成嵌入（embedding）。
+        结果：在语义缓存中未找到匹配项。
+
+步骤 3 → 成本与路由：网关检查 Token 预算并分析复杂度。
+        操作：任务类型为“摘要”（低复杂度）。路由至 Llama-3-8B 而非 GPT-4o。
+
+步骤 4 → LLM 执行：小模型处理脱敏后的 Prompt。
+        结果："医疗报告显示..."
+
+最终：用户收到摘要，系统记录使用情况以便计费。
+```
+
+```python title="gateway_logic.py"
+class AIGateway:
+    def __init__(self, scrubber, token_manager):
+        self.scrubber = scrubber
+        self.token_manager = token_manager
+
+    def process_request(self, user_prompt: str):
+        # 1. 安全脱敏
+        safe_prompt = self.scrubber.scrub(user_prompt)
+        
+        # 2. 成本检查 (模拟 Token 计数)
+        estimated_tokens = len(safe_prompt.split()) * 1.3
+        if not self.token_manager.check_budget(int(estimated_tokens)):
+            return "错误：超出预算。"
+
+        # 3. 路由逻辑 (简化版)
+        model_to_use = "gpt-4o" if "complex reasoning" in safe_prompt.lower() else "llama-3-8b"
+        
+        # 4. 最终执行 (模拟 API 调用)
+        self.token_manager.record_usage(int(estimated_tokens))
+        return f"通过 {model_to_use} 处理完毕：[对 '{safe_prompt}' 的响应]"
+
+# 实现
+from security_middleware import PIIScrubber
+from cache_manager import TokenManager
+
+gateway = AIGateway(PIIScrubber(), TokenManager(budget_limit=1000))
+print(gateway.process_request("我的邮箱是 test@test.com，我需要进行复杂的推理。"))
+```
+
+## 常见故障模式
+
+| 症状 | 可能的原因 | 修复方案 |
+| :--- | :--- | :--- |
+| 高延迟峰值 | 脱敏层中的正则表达式过于复杂或使用了沉重的 NLP 模型。 | 优化正则表达式或使用轻量级的、专门的 NER 模型。 |
+| 缓存污染 (Cache Poisoning) | 恶意用户将特定的响应注入到语义缓存中。 | 对所有缓存条目实施严格的验证和清洗。 |
+| OOM (内存溢出) 错误 | 在私有化部署中，模型权重超过了可用的 GPU 显存 (VRAM)。 | 使用量化技术（例如 AWQ 或 GPTQ）来减小模型体积。 |
+| 数据泄露 | 由于编码问题，敏感数据绕过了脱敏层。 | 对所有出站流量实施多阶段审计和流出监控。 |
+
+## 任务练习
+
+编写一个 Python 脚本来实现“预算护栏 (Budget Guardrail)”。该脚本应接收一组模拟的 API 响应列表（每个响应都包含一个 `token_count` 属性），并在累计 Token 计数超过预定义的 500 个 Token 限制时立即停止处理。最后打印在达到限制之前成功处理的请求数量。
+
+## 小结
+
+*   使用**语义缓存**和**模型路由**来控制 LLM 的运营成本。
+*   实现程序化的 **PII 脱敏层** 以防止敏感数据泄露。
+*   针对高安全性、物理隔离 (air-gapped) 的需求，部署**私有推理服务器**（如 vLLM）。
+*   将所有逻辑集中在 **AI 网关** 中，以确保一致的安全和成本审计。
+
+## 下一步
+
+在最后一章中，你将综合运用本课程所学的一切，构建属于自己的 AI 编程智能体——一个类似 Claude Code 的简化版生产工具，涵盖规划、记忆、工具调用与自我审查。

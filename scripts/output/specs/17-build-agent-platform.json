@@ -1,0 +1,76 @@
+{
+  "chapter_id": "17-build-agent-platform",
+  "title": "Build an Agent Platform",
+  "slug": "build-agent-platform",
+  "sidebar_position": 3,
+  "category": "real-projects",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Build a custom workflow engine to orchestrate AI agents, manage state, and execute tools.",
+  "learning_objectives": [
+    "Design a state management system for agent memory",
+    "Implement a tool execution dispatcher to bridge LLM calls and code",
+    "Construct an autonomous orchestration loop (Think-Act-Observe)",
+    "Build a complete end-to-end agentic workflow from scratch"
+  ],
+  "prerequisites": [
+    "Knowledge of asynchronous programming in Python or TypeScript",
+    "Experience with LLM API function calling/tool definitions"
+  ],
+  "sections": [
+    {
+      "heading": "Architecture of an Agent Platform",
+      "content_brief": "Explain the conceptual difference between a linear chain and an agentic loop. Introduce the 'ReAct' (Reason + Act) pattern as the foundation for the platform architecture.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Designing the State Manager",
+      "content_brief": "Implement a state object that tracks conversation history, tool outputs, and internal variables. Explain how this state acts as the 'short-term memory' passed back into the LLM context window.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A State class that manages a list of messages and a key-value store for agent variables."
+    },
+    {
+      "heading": "The Tool Dispatcher",
+      "content_brief": "Create a registry system where tools are defined as functions. Implement a dispatcher that takes the LLM's tool call request, matches it to the correct function, and executes it safely.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A ToolRegistry class with methods to register functions and execute them by name using dynamic dispatch."
+    },
+    {
+      "heading": "Implementing the Orchestration Loop",
+      "content_brief": "Build the core 'while' loop that manages the agent's lifecycle: calling the LLM, parsing tool requests, executing tools via the dispatcher, and feeding results back to the LLM until a final response is generated.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "The main agent loop implementing the Think-Act-Observe cycle."
+    },
+    {
+      "heading": "End-to-End Example: A Research Agent",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (with actual values/messages) to final output. This will demonstrate a research agent using a mock search tool and a calculator.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A full implementation combining the State Manager, Tool Dispatcher, and Loop to solve a multi-step query."
+    }
+  ],
+  "key_terms": [
+    "Orchestration Loop",
+    "State Management",
+    "Tool Dispatcher",
+    "ReAct Pattern",
+    "Agentic Workflow"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Always implement a maximum iteration limit (e.g., 10 loops) in your orchestration engine to prevent infinite loops and runaway API costs if the agent gets stuck."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_2",
+      "content": "For production platforms, consider using a database like Redis or PostgreSQL for state management instead of in-memory objects to allow for persistence across sessions."
+    }
+  ]
+}

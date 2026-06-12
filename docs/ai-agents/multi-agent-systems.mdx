@@ -1,0 +1,220 @@
+---
+sidebar_position: 3
+title: "Multi-Agent Systems"
+description: "Learn how to orchestrate multiple AI agents in a collaborative pipeline to plan, implement, and review code features."
+---
+
+## Learning Objectives
+
+- Define distinct roles and personas for specialized AI agents
+- Design a sequential hand-off workflow between a Planner and an Implementer
+- Implement an automated feedback loop for code review and refinement
+- Configure structured communication protocols to ensure reliable data transfer between agents
+
+## The Multi-Agent Architecture
+
+When working with a single Large Language Model (LLM) prompt, you often encounter the "monolithic prompt" problem. As tasks grow in complexity, a single prompt must handle planning, coding, and testing simultaneously. This increases the cognitive load on the model and significantly raises the likelihood of hallucinations and logic errors.
+
+Multi-Agent Systems (MAS) apply the principle of "separation of concerns." Instead of one massive instruction, you break the task into specialized roles. By delegating specific sub-tasks to dedicated agents, you reduce the complexity of each individual LLM call, leading to higher precision and more reliable outputs.
+
+```
+── MULTI-AGENT PIPELINE ───────────────────────────────────────────
+  User Requirement
+       ↓
+  ┌── Planner Agent ─────────────────────────────────────────────┐
+  │  "Analyze requirements, output a structured JSON spec"        │
+  └──────────────────────────────────────────────────────────────┘
+       ↓ technical_spec (JSON)
+  ┌── Implementer Agent ─────────────────────────────────────────┐
+  │  "Write clean code that satisfies the spec exactly"           │
+  └──────────────────────────────────────────────────────────────┘
+       ↓ generated_code
+  ┌── Reviewer Agent ────────────────────────────────────────────┐
+  │  "Compare code against spec, output {passed, issues}"         │
+  └──────────────────────────────────────────────────────────────┘
+       ↓
+  passed? → return code to user
+  failed? → send issues back to Implementer (up to max_retries)
+```
+
+Each agent only sees its own role prompt and the output from the previous stage — no agent needs the full conversation history of the others.
+
+## Defining Agent Personas
+
+The foundation of a multi-agent system is Persona Prompting. You must define clear boundaries, goals, and expected output formats for each agent. A common pattern involves a Technical Architect (the Planner) and a Software Engineer (the Implementer).
+
+```markdown title="prompts.md"
+# Role: Technical Architect (Planner)
+You are an expert system architect. Your goal is to analyze requirements and produce a detailed technical specification.
+Output a JSON object with the following fields:
+- feature_name: string
+- required_components: list of strings
+- logic_flow: list of ordered steps
+
+---
+
+# Role: Software Engineer (Implementer)
+You are a senior software engineer. Your goal is to write clean, functional code based on a provided technical specification.
+Input: Technical Specification (JSON)
+Output: A single Python code block. No explanation.
+
+---
+
+# Role: Code Reviewer
+You are a strict code reviewer. Compare the provided code against the spec.
+Output a JSON object: {"passed": true/false, "issues": ["issue 1", "issue 2"]}
+If passed is true, issues must be an empty list.
+```
+
+## Building the Collaborative Pipeline
+
+A pipeline is a sequential workflow where the output of one agent becomes the input for the next. This process, known as a "hand-off," requires passing structured context to ensure the Implementer understands exactly what the Planner decided.
+
+```python title="pipeline.py"
+import anthropic, json
+
+client = anthropic.Anthropic()
+
+PLANNER_SYSTEM   = open("prompts/planner.md").read()
+IMPLEMENTER_SYSTEM = open("prompts/implementer.md").read()
+REVIEWER_SYSTEM  = open("prompts/reviewer.md").read()
+
+def call_llm(system: str, user: str) -> str:
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+    return msg.content[0].text
+
+def run_pipeline(user_requirement: str) -> tuple[str, str]:
+    # Step 1: Planner produces a structured spec
+    technical_spec = call_llm(
+        PLANNER_SYSTEM,
+        f"Create a technical spec for: {user_requirement}",
+    )
+
+    # Step 2: Implementer turns spec into code
+    generated_code = call_llm(
+        IMPLEMENTER_SYSTEM,
+        f"Implement this spec:\n{technical_spec}",
+    )
+
+    return technical_spec, generated_code
+```
+
+:::tip
+Use structured formats like JSON or Markdown headers for agent hand-offs. This makes it significantly easier for the subsequent agent to parse specific requirements without noise.
+:::
+
+## Implementing the Review Loop
+
+To achieve high reliability, you can introduce a feedback loop. In this pattern, a third agent (or the original Planner) reviews the Implementer's code against the initial specification. If the code fails to meet the requirements, the system triggers a re-implementation request.
+
+```python title="loop.py"
+from pipeline import call_llm, run_pipeline, REVIEWER_SYSTEM
+import json
+
+def run_with_review(user_requirement: str, max_retries: int = 3) -> str:
+    technical_spec, current_code = run_pipeline(user_requirement)
+    issues_context = ""
+
+    for attempt in range(1, max_retries + 1):
+        # If this is a retry, prepend previous issues to the implementer prompt
+        if issues_context:
+            _, current_code = run_pipeline(
+                f"{user_requirement}\n\nPrevious review issues to fix:\n{issues_context}"
+            )
+
+        # Reviewer outputs structured JSON: {"passed": bool, "issues": [...]}
+        review_raw = call_llm(
+            REVIEWER_SYSTEM,
+            f"Spec:\n{technical_spec}\n\nCode:\n{current_code}",
+        )
+        review = json.loads(review_raw)
+
+        if review["passed"]:
+            print(f"Approved on attempt {attempt}.")
+            return current_code
+
+        issues_context = "\n".join(f"- {i}" for i in review["issues"])
+        print(f"Attempt {attempt} failed: {issues_context}")
+
+    raise RuntimeError(f"Code did not pass review after {max_retries} attempts.")
+```
+
+:::warning
+Be careful to implement a maximum iteration limit (e.g., 3-5 loops) to prevent 'infinite loops' where agents disagree indefinitely, which can rapidly deplete your API credits.
+:::
+
+## End-to-End Example: Rate Limiter Feature
+
+```text title="End-to-End: Three-Agent Pipeline in Action"
+User: "Add a rate limiter to the /api/login endpoint (max 5 requests/minute per IP)."
+
+── Planner Agent ────────────────────────────────────────────────
+Input:  user requirement (above)
+Output: {
+  "feature_name": "IP-based rate limiter for /api/login",
+  "required_components": ["Redis client", "rate_limit decorator",
+                           "login route update"],
+  "logic_flow": [
+    "1. On each request, read client IP from X-Forwarded-For header",
+    "2. Increment Redis counter for key 'ratelimit:{ip}' with TTL=60s",
+    "3. If counter > 5, return HTTP 429 with Retry-After header",
+    "4. Otherwise proceed to existing login handler"
+  ]
+}
+
+── Implementer Agent (attempt 1) ────────────────────────────────
+Input:  spec JSON above
+Output: Python code with rate_limit decorator using Redis INCR + EXPIRE
+
+── Reviewer Agent ───────────────────────────────────────────────
+Input:  spec JSON + generated code
+Output: {"passed": false, "issues": [
+  "Redis EXPIRE resets TTL on every request — use SET NX EX instead",
+  "Missing Retry-After header in the 429 response"
+]}
+
+── Implementer Agent (attempt 2) ────────────────────────────────
+Input:  original requirement + two issues from reviewer
+Output: fixed code using SET NX EX for atomic counter init,
+        adds Retry-After: 60 header to HTTP 429 response
+
+── Reviewer Agent ───────────────────────────────────────────────
+Input:  spec JSON + fixed code
+Output: {"passed": true, "issues": []}
+
+── Result ───────────────────────────────────────────────────────
+Approved on attempt 2. Final code returned to user.
+```
+
+The Reviewer caught a real concurrency bug (EXPIRE resetting the TTL) that the Implementer missed on the first pass — the kind of error that's easy to overlook in a single-agent workflow.
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Reviewer always returns `passed: false`, agents loop until `max_retries` | Reviewer prompt is too strict or spec is ambiguous | Make reviewer output specific, actionable issues; clarify ambiguous spec fields |
+| `json.loads` raises on reviewer output | Reviewer includes explanation text outside the JSON | Add "Output ONLY valid JSON, no prose" to reviewer system prompt |
+| Implementer ignores issues from previous attempt | Issues not injected into the retry prompt | Concatenate previous `issues` list to the user message on each retry |
+| Planner produces a spec that misses key requirements | User requirement too vague | Ask user to confirm the spec JSON before passing to Implementer |
+| Pipeline slow on every retry | Full Planner + Implementer run on each loop | Only re-run Implementer on retry; re-use existing spec |
+
+## Exercise
+
+Create a simple Python script that uses two different system prompts: one for a "Translator" agent and one for a "Grammar Checker" agent. The Translator should translate English text into French, and the Grammar Checker should verify if the French output is grammatically correct.
+
+## Summary
+
+- Multi-agent systems improve precision by applying separation of concerns — each agent only handles one role.
+- Persona prompting defines clear boundaries, output formats, and input expectations for each agent.
+- Sequential pipelines pass structured data (JSON) between agents; never rely on free-text string matching.
+- Feedback loops re-inject the Reviewer's specific issues into the Implementer's next prompt, not just a generic "try again."
+- Always cap retries and fail loudly; silent infinite loops deplete API credits without producing usable output.
+
+## What's Next
+
+In the next chapter, we'll explore how to build Coding Agents that autonomously read, edit, and reason about your codebase.

@@ -1,0 +1,76 @@
+{
+  "chapter_id": "12-mcp-integration",
+  "title": "Model Context Protocol (MCP)",
+  "slug": "mcp-integration",
+  "sidebar_position": 2,
+  "category": "ai-agents",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn how to extend Claude's capabilities by connecting it to external data sources and tools using the Model Context Protocol.",
+  "learning_objectives": [
+    "Explain the architecture of MCP including Hosts, Clients, and Servers",
+    "Install and configure a pre-built MCP server in Claude Desktop",
+    "Utilize MCP Resources to provide the model with external context",
+    "Execute MCP Tools to perform actions in external systems"
+  ],
+  "prerequisites": [
+    "Claude Desktop installed",
+    "Basic familiarity with JSON configuration files"
+  ],
+  "sections": [
+    {
+      "heading": "Introduction to Model Context Protocol",
+      "content_brief": "Explain MCP as an open standard that replaces fragmented integrations. Discuss the core problem it solves: giving LLMs a standardized way to access data and tools without custom glue code for every application.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "The MCP Architecture",
+      "content_brief": "Break down the three-tier architecture: the MCP Host (e.g., Claude Desktop), the MCP Client, and the MCP Server. Explain how they communicate via a standardized protocol to exchange resources and tools.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Configuring Your First MCP Server",
+      "content_brief": "Walk through the process of adding a server to the Claude Desktop configuration file. Demonstrate how to add a community server (like the filesystem or GitHub server) by editing the JSON config.",
+      "has_code_example": true,
+      "code_language": "json",
+      "code_context": "Example of a claude_desktop_config.json file adding a filesystem and github server"
+    },
+    {
+      "heading": "Working with MCP Resources",
+      "content_brief": "Define 'Resources' as read-only data sources (like files, database schemas, or API docs). Show how Claude identifies available resources and pulls them into the conversation context.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "Example of a prompt requesting a specific MCP resource by URI"
+    },
+    {
+      "heading": "Executing MCP Tools",
+      "content_brief": "Define 'Tools' as executable functions that allow the model to take actions (e.g., creating a Jira ticket or querying a DB). Explain the loop of tool discovery, call generation, and result processing.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "Example interaction where Claude uses an MCP tool to fetch data from an external API"
+    }
+  ],
+  "key_terms": [
+    "MCP Host",
+    "MCP Server",
+    "Resources",
+    "Tools",
+    "Transport Layer"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Be cautious when installing third-party MCP servers. Since these servers can have access to your local filesystem or API keys, only use servers from trusted sources."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_5",
+      "content": "You can find a growing list of community-maintained MCP servers on GitHub and the official Anthropic documentation to extend Claude's reach into your existing toolstack."
+    }
+  ]
+}

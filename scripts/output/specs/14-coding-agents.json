@@ -1,0 +1,69 @@
+{
+  "chapter_id": "14-coding-agents",
+  "title": "Coding Agents",
+  "slug": "coding-agents",
+  "sidebar_position": 4,
+  "category": "ai-agents",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Learn to deploy and manage autonomous coding agents to execute complex, multi-file refactors and architectural changes.",
+  "learning_objectives": [
+    "Distinguish between standard AI assistants and autonomous coding agents",
+    "Configure a coding agent environment using tools like Cursor or Claude Code",
+    "Execute a wide-scale refactor across multiple files using an agentic workflow",
+    "Verify and audit agent-generated changes through diff reviews and test suites"
+  ],
+  "prerequisites": [
+    "Basic familiarity with Git version control",
+    "Experience with AI chat interfaces (e.g., ChatGPT, Claude)"
+  ],
+  "sections": [
+    {
+      "heading": "From Copilots to Agents",
+      "content_brief": "Explain the shift from autocomplete/chat (Copilots) to agents that can read files, run terminal commands, and edit code autonomously. Discuss the 'Agentic Loop': Perceive, Plan, Act, and Evaluate.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Setting Up Your Agentic Environment",
+      "content_brief": "Walk through the installation and initialization of a coding agent (e.g., Claude Code CLI or Cursor). Explain the importance of codebase indexing/embedding for providing the agent with global context.",
+      "has_code_example": true,
+      "code_language": "bash",
+      "code_context": "Installing and initializing a CLI-based coding agent"
+    },
+    {
+      "heading": "Executing Wide-Scale Refactors",
+      "content_brief": "Demonstrate how to prompt an agent for a multi-file change, such as updating a deprecated API signature or migrating a data model. Contrast 'single-file' prompting with 'project-wide' instructions.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "Example of a high-level agentic prompt for a multi-file refactor"
+    },
+    {
+      "heading": "The Human-in-the-Loop: Review and Verification",
+      "content_brief": "Detail the process of auditing agent changes. Cover reviewing diffs, running existing test suites to catch regressions, and providing iterative feedback to the agent to fix errors.",
+      "has_code_example": true,
+      "code_language": "bash",
+      "code_context": "Running tests and using git diff to verify agentic changes"
+    }
+  ],
+  "key_terms": [
+    "Coding Agent",
+    "Agentic Workflow",
+    "Codebase Indexing",
+    "Tool-Use (Function Calling)",
+    "Human-in-the-Loop"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Always ensure you are on a clean Git branch before initiating an agentic refactor. Agents can modify dozens of files in seconds, making it impossible to undo changes manually without version control."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_4",
+      "content": "If an agent gets stuck in a loop or fails to fix a bug after two attempts, provide a specific hint about the file or logic it is missing rather than asking it to 'try again'."
+    }
+  ]
+}

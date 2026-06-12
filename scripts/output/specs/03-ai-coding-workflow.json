@@ -1,0 +1,76 @@
+{
+  "chapter_id": "03-ai-coding-workflow",
+  "title": "AI Coding Workflow",
+  "slug": "ai-coding-workflow",
+  "sidebar_position": 3,
+  "category": "foundations",
+  "difficulty": "beginner",
+  "estimated_minutes": 25,
+  "description": "Learn to transition from a traditional manual coding loop to an AI-augmented workflow focused on planning, verification, and iterative refinement.",
+  "learning_objectives": [
+    "Contrast the traditional development loop with the AI-assisted loop",
+    "Apply a structured approach to planning and prompting for feature implementation",
+    "Implement a rigorous review process to verify AI-generated code",
+    "Execute an iterative refinement cycle to move from initial draft to production-ready code"
+  ],
+  "prerequisites": [
+    "Basic familiarity with IDEs",
+    "Understanding of version control (Git)"
+  ],
+  "sections": [
+    {
+      "heading": "The Paradigm Shift: Writer to Editor",
+      "content_brief": "Explain the fundamental shift in the developer's role from primarily writing syntax to acting as an architect and reviewer. Contrast the 'Think-Code-Test' loop with the 'Plan-Prompt-Verify' loop.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Phase 1: Intentional Planning",
+      "content_brief": "Discuss the importance of defining requirements and constraints before touching the AI. Show how to translate a feature request into a structured prompt that includes context, goals, and technical constraints.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A high-quality system prompt/instruction for implementing a specific utility function."
+    },
+    {
+      "heading": "Phase 2: Iterative Implementation",
+      "content_brief": "Cover the strategy of 'chunking'—breaking large features into small, manageable prompts to avoid AI hallucinations and context window limits. Explain how to use iterative feedback to steer the output.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A sequence of prompt-response iterations showing a function being built in stages."
+    },
+    {
+      "heading": "Phase 3: The Verification Loop",
+      "content_brief": "Detail the critical step of reviewing AI code. Focus on checking for logic errors, security vulnerabilities, and adherence to project style guides using tests and linting.",
+      "has_code_example": true,
+      "code_language": "javascript",
+      "code_context": "Writing a unit test specifically designed to catch common AI-generated edge-case failures."
+    },
+    {
+      "heading": "Phase 4: Approval and Integration",
+      "content_brief": "Explain the final human sign-off process. Discuss how to integrate the verified code into the main codebase, including documentation updates and final commit practices.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    }
+  ],
+  "key_terms": [
+    "AI-Assisted Loop",
+    "Chunking",
+    "Verification Loop",
+    "Prompt Engineering",
+    "Hallucination"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Never merge AI-generated code directly into a main branch without running it through your local test suite and performing a manual line-by-line review."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_2",
+      "content": "If the AI is struggling with a complex task, try asking it to 'think step-by-step' or write the pseudocode first before implementing the actual logic."
+    }
+  ]
+}

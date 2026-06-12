@@ -1,0 +1,230 @@
+---
+sidebar_position: 2
+title: "Model Context Protocol (MCP)"
+description: "Learn how MCP connects AI models to external tools and data sources using a standardized client-server protocol over stdio or HTTP."
+---
+
+## Learning Objectives
+
+- Explain the MCP architecture: Hosts, Clients, and Servers.
+- Understand how a Client connects to a Server using stdio and SSE transports.
+- Configure a local MCP server in Claude Desktop using `claude_desktop_config.json`.
+- Distinguish between MCP Resources (read-only data) and MCP Tools (executable actions).
+
+## What Problem Does MCP Solve?
+
+Before MCP, connecting an LLM to an external tool — say, a GitHub repository or a local database — required custom "glue code" written specifically for that pairing. Adding a second tool meant writing more glue code. The integrations did not compose.
+
+MCP (Model Context Protocol) is an open standard that defines a single, reusable protocol for this connection. Once a tool exposes an MCP Server, any MCP-compatible AI application (the "Host") can use it without additional integration work.
+
+## The Three-Tier Architecture
+
+MCP uses three roles that communicate through a well-defined protocol:
+
+```
+┌─────────────────────────────────────────┐
+│  Host (e.g. Claude Desktop, Cursor)     │
+│                                         │
+│   ┌────────────┐   JSON-RPC messages    │
+│   │ MCP Client │◄──────────────────────►│ MCP Server (external process)
+│   └────────────┘   over stdio or SSE    │   e.g. filesystem, GitHub, DB
+└─────────────────────────────────────────┘
+```
+
+**Host** — The AI application the user interacts with (Claude Desktop, Cursor, VS Code with Copilot). The Host owns the user interface and decides when to invoke MCP capabilities.
+
+**Client** — A component that lives *inside* the Host. It manages the lifecycle of the connection to one specific Server: it spawns the server process (or opens the HTTP connection), performs the protocol handshake, sends requests, and receives responses.
+
+**Server** — A lightweight, standalone program that wraps one external capability (reading files, querying GitHub, running a shell command). It speaks the MCP protocol and nothing else. A single Host can connect to multiple Servers simultaneously, each through its own Client instance.
+
+## How the Client Connects to the Server
+
+This is the key mechanism MCP is built on. There are two transport options:
+
+### stdio Transport (local processes)
+
+This is the most common setup for developer tools. The Host **spawns the MCP Server as a child process** on your machine. The Client and Server then communicate by writing JSON-RPC messages to each other's **stdin/stdout** streams.
+
+```
+Host process
+  └── spawns ──► Server process  (e.g. `npx @modelcontextprotocol/server-filesystem`)
+                    ↑↓ stdin / stdout
+                 JSON-RPC messages
+                    {"jsonrpc":"2.0","method":"tools/list",...}
+                    {"jsonrpc":"2.0","result":{...},...}
+```
+
+When you add an entry to `claude_desktop_config.json`, the `"command"` and `"args"` fields tell the Host *exactly what subprocess to launch*. The server never binds to a network port — it only reads from stdin and writes to stdout. This is why the setup is just a config file with no manual server startup.
+
+### SSE Transport (remote servers)
+
+For servers that run remotely (e.g. a company-hosted data connector), the Client connects over HTTP using **Server-Sent Events (SSE)**. The Host points to a URL instead of a command. The Server stays up independently and multiple clients can connect to it.
+
+```
+Host process
+  └── connects via HTTP ──► https://my-server.example.com/mcp
+                               SSE stream (server → client)
+                               POST requests (client → server)
+```
+
+## Configuring a Local MCP Server
+
+To register a server with the stdio transport, edit `claude_desktop_config.json` (usually in `~/Library/Application Support/Claude/` on macOS):
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/username/Documents"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here"
+      }
+    }
+  }
+}
+```
+
+Each key under `"mcpServers"` is a name you choose. When Claude Desktop starts, it:
+1. Reads this file and finds each server entry.
+2. Spawns a child process using `command` + `args`.
+3. Creates a Client that communicates with that process over stdio.
+4. Performs an MCP handshake to discover what Resources and Tools the server exposes.
+
+The `"env"` field injects environment variables into the server's process — the right place for secrets like API tokens.
+
+:::warning
+MCP servers inherit the permissions of the Host process. A filesystem server configured to point at `/` would allow the AI to read your entire drive. Always scope servers to the minimum necessary directory or permissions.
+:::
+
+## MCP Resources
+
+Resources are **read-only** data that the server makes available to the model. The model can pull them into its context window on demand, much like attaching a file to a chat.
+
+Each resource is identified by a URI. For example:
+
+```text
+"Please review the architecture notes at file:///Users/username/Documents/arch.md"
+```
+
+The Client sends a `resources/read` request to the Server, which reads the file and returns its contents as part of the conversation context. Common resource types include local files, database schemas, and API documentation.
+
+## MCP Tools
+
+Tools are **executable functions** the AI can call to take actions — not just read data. The loop works like this:
+
+1. **Discovery**: On startup the Client calls `tools/list`; the Server returns a list of available tools with their names, descriptions, and input schemas.
+2. **Selection**: The model reads the tool list and decides which tool to call and with what arguments.
+3. **Execution**: The Client sends a `tools/call` request to the Server, which executes the action and returns the result.
+4. **Continuation**: The result is injected back into the model's context so it can reason about it and respond to the user.
+
+```text title="Example tool interaction"
+User:   "Check the status of the latest production deployment."
+
+Model:  (calls tool `get_deployment_status` with args {"env": "production"})
+
+Server: returns → "Deployment v2.4.0 is running and healthy."
+
+Model:  "The latest deployment (v2.4.0) is currently running and healthy."
+```
+
+:::tip
+The tool descriptions returned by `tools/list` are what the model reads to decide whether and how to call a tool. Write them clearly — they directly affect whether the AI uses your tool correctly.
+:::
+
+## End-to-End Example: Code Review with the GitHub MCP Server
+
+This walkthrough shows how the three layers work together in practice. The config from earlier has a `github` server registered. Here is what happens when you ask the AI to review an open pull request.
+
+**Step 1 — Discovery (happens once at startup)**
+
+The Host spawns `npx @modelcontextprotocol/server-github` and the Client calls `tools/list`. The GitHub Server returns its available tools, including:
+
+```json title="tools/list response (excerpt)"
+[
+  { "name": "list_pull_requests", "description": "List open PRs for a repository." },
+  { "name": "get_pull_request_files", "description": "Return the files changed in a PR." },
+  { "name": "create_review_comment", "description": "Post a review comment on a specific line." }
+]
+```
+
+The model now knows these tools exist and what arguments they take.
+
+**Step 2 — The user makes a request**
+
+```text
+User: "Review the open PRs in acme-org/backend and flag any that touch the auth module."
+```
+
+**Step 3 — The model chains multiple tool calls**
+
+The model does not make a single call. It reasons step-by-step, using the output of one tool to decide the next:
+
+```text
+Model → tools/call list_pull_requests {"owner": "acme-org", "repo": "backend"}
+Server → [{"number": 47, "title": "Migrate auth to OAuth2"}, {"number": 51, "title": "Fix pagination bug"}]
+
+Model → tools/call get_pull_request_files {"owner": "acme-org", "repo": "backend", "pull_number": 47}
+Server → ["src/auth/auth_provider.py", "src/auth/middleware.py", "tests/auth/test_oauth.py"]
+
+Model → tools/call get_pull_request_files {"owner": "acme-org", "repo": "backend", "pull_number": 51}
+Server → ["src/api/pagination.py"]
+
+Model: "PR #47 ('Migrate auth to OAuth2') touches the auth module — files changed:
+        auth_provider.py, middleware.py, and test_oauth.py.
+        PR #51 only modifies pagination.py and is unrelated to auth."
+```
+
+The model called three tools in sequence, using the result of each call to decide what to ask next. This is the core pattern that makes MCP agents useful: the AI navigates a multi-step task autonomously rather than waiting for the user to relay each intermediate result.
+
+**Step 4 — Taking action**
+
+The user can now go further without leaving the conversation:
+
+```text
+User: "Post a comment on PR #47 asking the author to confirm the token expiry logic was updated."
+
+Model → tools/call create_review_comment {
+          "owner": "acme-org",
+          "repo": "backend",
+          "pull_number": 47,
+          "body": "Could you confirm whether the token expiry logic in auth_provider.py was updated to align with the new OAuth2 provider's TTL settings?"
+        }
+Server → {"id": 892341, "status": "created"}
+
+Model: "Comment posted on PR #47."
+```
+
+:::warning
+Tool calls that write data — posting comments, pushing commits, deleting files — are irreversible. Always read the model's planned action before it executes, and keep `--no-fix` or a confirmation step in automated pipelines.
+:::
+
+## Exercise
+
+Configure the `filesystem` MCP server in your local Claude Desktop:
+
+1. Open or create `~/Library/Application Support/Claude/claude_desktop_config.json`.
+2. Add the `filesystem` server entry pointing to a specific folder on your machine.
+3. Restart Claude Desktop.
+4. Ask: "List the files in my Documents folder." Verify the AI reads from the path you configured.
+
+## Summary
+
+- MCP standardizes how LLMs connect to external tools, eliminating per-integration glue code.
+- The **stdio transport** is the common local setup: the Host spawns the Server as a subprocess and communicates via stdin/stdout JSON-RPC.
+- The **SSE transport** is used for remote servers over HTTP.
+- **Resources** give the model read-only access to data via URIs.
+- **Tools** let the model execute actions; the Server exposes them via `tools/list` and the model calls them via `tools/call`.
+- `claude_desktop_config.json` is where you register servers; each entry is a subprocess command the Host will spawn.
+
+## What's Next
+
+In the next chapter, we'll explore Multi-Agent Systems and how to coordinate multiple specialized agents toward a shared goal.

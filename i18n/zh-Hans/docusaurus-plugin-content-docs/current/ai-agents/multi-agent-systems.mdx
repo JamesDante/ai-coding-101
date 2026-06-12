@@ -1,0 +1,220 @@
+---
+sidebar_position: 3
+title: "多智能体系统"
+description: "学习如何在协作流水线中编排多个 AI agent，以实现代码功能的规划、实现和评审。"
+---
+
+## 学习目标
+
+- 为专门化的 AI agent 定义清晰的角色 (Persona) 和职责
+- 设计 Planner（规划者）与 Implementer（实现者）之间的顺序交接工作流
+- 实现用于代码评审和优化的自动化反馈循环
+- 配置结构化通信协议，以确保 agent 之间可靠的数据传输
+
+## 多智能体架构
+
+在处理单个大语言模型 (LLM) prompt 时，你经常会遇到“单体式 Prompt”问题。随着任务复杂度的增加，单个 prompt 必须同时处理规划、编码和测试。这增加了模型的认知负荷，并显著提高了幻觉 (hallucination) 和逻辑错误的概率。
+
+多智能体系统 (Multi-Agent Systems, MAS) 应用了”关注点分离”的原则。你不再使用一个庞大的指令，而是将任务分解为专门的角色。通过将特定的子任务委派给专门的 agent，你可以降低每个单独 LLM 调用的复杂度，从而获得更高的精度和更可靠的输出。
+
+```
+── 多智能体流水线 ─────────────────────────────────────────────────
+  用户需求
+       ↓
+  ┌── 规划者 (Planner) ──────────────────────────────────────────┐
+  │  “分析需求，输出结构化 JSON 规范”                             │
+  └──────────────────────────────────────────────────────────────┘
+       ↓ technical_spec（JSON）
+  ┌── 实现者 (Implementer) ──────────────────────────────────────┐
+  │  “根据规范编写整洁的代码”                                     │
+  └──────────────────────────────────────────────────────────────┘
+       ↓ generated_code
+  ┌── 评审者 (Reviewer) ─────────────────────────────────────────┐
+  │  “对比代码与规范，输出 {passed, issues}”                      │
+  └──────────────────────────────────────────────────────────────┘
+       ↓
+  通过？→ 将代码返回给用户
+  失败？→ 将 issues 反馈给 Implementer（不超过 max_retries 次）
+```
+
+每个 agent 只能看到自己的角色提示词和上一阶段的输出——没有任何 agent 需要获取其他 agent 的完整对话历史。
+
+## 定义 Agent 角色 (Persona)
+
+多智能体系统的基础是角色提示词 (Persona Prompting)。你必须为每个 agent 定义清晰的边界、目标和预期的输出格式。一种常见的模式包含技术架构师（Planner）、软件工程师（Implementer）和代码评审者（Reviewer）。
+
+```markdown title="prompts.md"
+# 角色：技术架构师（规划者）
+你是一位专家级系统架构师。你的目标是分析需求并生成详细的技术规范。
+输出一个包含以下字段的 JSON 对象：
+- feature_name：字符串
+- required_components：字符串列表
+- logic_flow：有序步骤列表
+
+---
+
+# 角色：软件工程师（实现者）
+你是一位资深软件工程师。你的目标是根据提供的技术规范编写整洁、功能完备的代码。
+输入：技术规范（JSON）
+输出：单个 Python 代码块，不附任何解释。
+
+---
+
+# 角色：代码评审者
+你是一位严格的代码评审者。将提供的代码与规范进行对比。
+输出一个 JSON 对象：{"passed": true/false, "issues": ["问题 1", "问题 2"]}
+如果 passed 为 true，issues 必须为空列表。
+```
+
+## 构建协作流水线
+
+流水线 (Pipeline) 是一种顺序工作流，其中一个 agent 的输出成为下一个 agent 的输入。这个过程被称为“交接 (hand-off)”，它需要传递结构化的上下文，以确保 Implementer 能够准确理解 Planner 的决策。
+
+```python title="pipeline.py"
+import anthropic, json
+
+client = anthropic.Anthropic()
+
+PLANNER_SYSTEM    = open("prompts/planner.md").read()
+IMPLEMENTER_SYSTEM = open("prompts/implementer.md").read()
+REVIEWER_SYSTEM   = open("prompts/reviewer.md").read()
+
+def call_llm(system: str, user: str) -> str:
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+    return msg.content[0].text
+
+def run_pipeline(user_requirement: str) -> tuple[str, str]:
+    # 第 1 步：Planner 生成结构化规范
+    technical_spec = call_llm(
+        PLANNER_SYSTEM,
+        f"为以下内容创建技术规范：{user_requirement}",
+    )
+
+    # 第 2 步：Implementer 将规范转化为代码
+    generated_code = call_llm(
+        IMPLEMENTER_SYSTEM,
+        f"实现此规范：\n{technical_spec}",
+    )
+
+    return technical_spec, generated_code
+```
+
+:::tip
+在 agent 交接时，使用 JSON 或 Markdown 标题等结构化格式。这使得后续的 agent 能够显著更容易地解析特定需求，而不会受到杂讯干扰。
+:::
+
+## 实现评审循环
+
+为了实现高可靠性，你可以引入反馈循环。在这种模式中，第三个 agent（或原始的 Planner）会根据初始规范来评审 Implementer 的代码。如果代码未能满足要求，系统将触发重新实现请求。
+
+```python title="loop.py"
+from pipeline import call_llm, run_pipeline, REVIEWER_SYSTEM
+import json
+
+def run_with_review(user_requirement: str, max_retries: int = 3) -> str:
+    technical_spec, current_code = run_pipeline(user_requirement)
+    issues_context = ""
+
+    for attempt in range(1, max_retries + 1):
+        # 如果是重试，将上次的问题列表注入提示词
+        if issues_context:
+            _, current_code = run_pipeline(
+                f"{user_requirement}\n\n上次评审发现的问题（请修复）：\n{issues_context}"
+            )
+
+        # 评审者输出结构化 JSON：{"passed": bool, "issues": [...]}
+        review_raw = call_llm(
+            REVIEWER_SYSTEM,
+            f"规范：\n{technical_spec}\n\n代码：\n{current_code}",
+        )
+        review = json.loads(review_raw)
+
+        if review["passed"]:
+            print(f"第 {attempt} 次尝试通过评审。")
+            return current_code
+
+        issues_context = "\n".join(f"- {i}" for i in review["issues"])
+        print(f"第 {attempt} 次失败：{issues_context}")
+
+    raise RuntimeError(f"代码在 {max_retries} 次尝试后仍未通过评审。")
+```
+
+:::warning
+请务必实现最大迭代限制（例如 3-5 次循环），以防止 agent 陷入无休止争论的“死循环”，这会迅速耗尽你的 API 额度。
+:::
+
+## 端到端示例：限流器功能
+
+```text title="端到端：三智能体流水线实战"
+用户："为 /api/login 端点添加限流（每个 IP 每分钟最多 5 次请求）。"
+
+── 规划者 (Planner) ─────────────────────────────────────────────
+输入：用户需求（如上）
+输出：{
+  "feature_name": "基于 IP 的 /api/login 限流",
+  "required_components": ["Redis 客户端", "rate_limit 装饰器",
+                           "登录路由更新"],
+  "logic_flow": [
+    "1. 从 X-Forwarded-For 头读取客户端 IP",
+    "2. 对键 'ratelimit:{ip}' 执行 Redis 计数器递增，TTL=60s",
+    "3. 如果计数器 > 5，返回 HTTP 429 并附带 Retry-After 头",
+    "4. 否则继续执行现有登录处理逻辑"
+  ]
+}
+
+── 实现者（第 1 次）───────────────────────────────────────────────
+输入：上述规范 JSON
+输出：使用 Redis INCR + EXPIRE 的 rate_limit 装饰器 Python 代码
+
+── 评审者 ────────────────────────────────────────────────────────
+输入：规范 JSON + 生成的代码
+输出：{"passed": false, "issues": [
+  "Redis EXPIRE 在每次请求时都会重置 TTL——应使用 SET NX EX 实现原子计数器初始化",
+  "HTTP 429 响应缺少 Retry-After 头"
+]}
+
+── 实现者（第 2 次）───────────────────────────────────────────────
+输入：原始需求 + 评审者发现的两个问题
+输出：修复后的代码——使用 SET NX EX 进行原子计数器初始化，
+      HTTP 429 响应添加 Retry-After: 60 头
+
+── 评审者 ────────────────────────────────────────────────────────
+输入：规范 JSON + 修复后的代码
+输出：{"passed": true, "issues": []}
+
+── 最终结果 ─────────────────────────────────────────────────────
+第 2 次尝试通过评审，最终代码返回给用户。
+```
+
+评审者发现了一个真实的并发 bug（EXPIRE 会重置 TTL），这是实现者在第一次迭代中遗漏的——在单智能体工作流中，这类错误很容易被忽略。
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| 评审者始终返回 `passed: false`，循环直到 `max_retries` | 评审者提示词过于严苛，或规范存在歧义 | 让评审者输出具体、可执行的问题；澄清规范中含糊的字段 |
+| `json.loads` 解析评审者输出时报错 | 评审者在 JSON 之外附加了说明文字 | 在评审者系统提示词中加入"仅输出合法 JSON，不附任何说明" |
+| 实现者忽略了上次迭代中的问题 | 问题列表未被注入重试的提示词 | 在每次重试时，将上次的 `issues` 列表拼接到用户消息中 |
+| 规划者生成的规范遗漏了关键需求 | 用户需求描述过于模糊 | 在传给实现者之前，先让用户确认规范 JSON |
+| 每次重试流水线速度都很慢 | 每次循环都重新运行了 Planner + Implementer | 重试时只重新运行 Implementer；复用已有规范 |
+
+## 练习
+
+编写一个简单的 Python 脚本，使用两个不同的系统提示词：一个是用于“翻译器 (Translator)”agent 的，另一个是用于“语法检查器 (Grammar Checker)”agent 的。翻译器应将英文文本翻译成法文，而语法检查器应验证法文输出是否符合语法规范。
+
+## 小结
+
+- 多智能体系统通过关注点分离来提高精度——每个 agent 只负责一种角色。
+- 角色提示词为每个 agent 定义了清晰的边界、输出格式和输入预期。
+- 顺序流水线通过**结构化数据（JSON）**传递上下文；绝不依赖自由文本的字符串匹配。
+- 反馈循环将评审者发现的**具体问题**注入实现者的下一次提示词，而不是笼统地说"再试一次"。
+- 始终限制重试次数并明确报错；无声的无限循环会耗尽 API 额度却不产生任何可用输出。
+
+## 下一步
+
+在下一章中，我们将探索如何构建能够自主读取、编辑和理解代码库的编程智能体。

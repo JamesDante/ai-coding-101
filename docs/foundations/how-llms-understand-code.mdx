@@ -1,0 +1,81 @@
+---
+sidebar_position: 2
+title: "How LLMs Understand Code"
+description: "Learn how tokenization and context windows influence AI code generation and why these mechanisms lead to hallucinations."
+---
+
+## Learning Objectives
+
+- Explain the difference between characters and tokens in source code.
+- Identify the limitations of a model's context window when processing large files.
+- Relate probabilistic token prediction to common coding hallucinations.
+
+## Tokens: The Atoms of AI
+
+Large Language Models (LLMs) do not read your code character by character or line by line. Instead, they process text using "tokens." A token is a chunk of text that can be a single character, a whole word, or even part of a word.
+
+Common programming keywords like `const` or `function` are usually single tokens because the model sees them frequently. However, unique variable names or complex strings often get split into multiple smaller tokens.
+
+```javascript title="example.js"
+const userAge = 25;
+
+// Visual representation of tokenization:
+// [const] [user] [Age] [=] [25] [;]
+```
+
+:::note
+Different models use different tokenizers. For example, a piece of code might be 50 tokens in GPT-4 but 60 tokens in Claude.
+:::
+
+## The Context Window Limit
+
+Every LLM has a "context window," which acts like the model's short-term memory. This window defines the maximum number of tokens the model can process in a single interaction.
+
+When you work with large codebases, you might hit this limit. If a file or a conversation exceeds the context window, the model begins to "forget" the earliest parts of the prompt. This leads to truncation, where the model loses architectural awareness and forgets important definitions, imports, or logic established earlier in the file.
+
+## Probabilistic Prediction vs. Logical Execution
+
+It is easy to mistake an LLM for a compiler, but they operate on fundamentally different principles. A compiler performs deterministic parsing; it follows strict logical rules to verify if your code is valid. 
+
+An LLM uses probabilistic prediction. It does not "run" your code in a sandbox to see if it works. Instead, it calculates which token is most likely to come next based on patterns learned during training. The model predicts what *looks* like correct code rather than verifying the underlying logic.
+
+```python title="logic_error.py"
+def calculate_total(price, tax):
+    # This looks syntactically perfect and follows a common pattern.
+    # However, the LLM might predict 'minus' because it matches 
+    # certain training patterns, even though the logic requires addition.
+    return price - tax
+```
+
+## The Root of Hallucinations
+
+Hallucinations occur when the model's drive to complete a pattern overrides factual accuracy. Because the model is simply predicting the next most likely token, it often invents plausible-sounding API methods or library functions. 
+
+This happens by blending patterns from different libraries. If one library uses `fetchData` and another uses `get_data`, the model might hallucinate a hybrid method like `fetch_data` that does not actually exist in either.
+
+```typescript title="hallucination.ts"
+import { apiClient } from 'cloud-lib';
+
+// The model predicts this looks like a standard pattern, 
+// but 'fetchWithAuthRetry' is a hallucinated method.
+const data = await apiClient.fetchWithAuthRetry('/user/profile');
+```
+
+:::warning
+Because LLMs predict patterns rather than verify logic, you must always treat AI-generated code as a "draft" that requires compilation and testing.
+:::
+
+## Exercise
+
+Open your favorite code editor and write a long, nonsensical variable name (e.g., `const superLongVariableThatHasNoMeaningAtAll = 10;`). Paste this into an LLM and ask it to "list the tokens in this line." Observe how the model breaks your unique string into smaller, recognizable chunks.
+
+## Summary
+
+- Tokens are the fundamental units of text that LLMs process, often grouping characters into meaningful chunks.
+- The context window limits how much code a model can "remember" at one time.
+- LLMs predict the next most likely token based on probability rather than executing logical code.
+- Hallucinations arise when models create plausible but non-existent code patterns or APIs.
+
+## What's Next
+
+Now that you understand how models process text, learn how to control this behavior in the next chapter.

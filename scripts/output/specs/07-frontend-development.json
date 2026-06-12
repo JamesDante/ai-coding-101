@@ -1,0 +1,76 @@
+{
+  "chapter_id": "07-frontend-development",
+  "title": "Frontend Development",
+  "slug": "frontend-development",
+  "sidebar_position": 1,
+  "category": "ai-assisted-development",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn to rapidly prototype and build responsive React components using Claude and Tailwind CSS.",
+  "learning_objectives": [
+    "Generate a high-fidelity UI component using structured AI prompts",
+    "Apply Tailwind CSS utility classes through iterative refinement with an LLM",
+    "Implement interactive state logic in AI-generated React components",
+    "Optimize AI-generated layouts for mobile responsiveness and accessibility"
+  ],
+  "prerequisites": [
+    "Basic React and Tailwind CSS knowledge",
+    "Fundamental AI prompting techniques"
+  ],
+  "sections": [
+    {
+      "heading": "Defining Component Requirements",
+      "content_brief": "Explain how to write a 'specification prompt' that defines the component's purpose, visual style, required props, and technical constraints. Contrast vague prompts with detailed specifications to show the impact on output quality.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "Example of a high-quality prompt for a complex UI component (e.g., a pricing table or dashboard widget)"
+    },
+    {
+      "heading": "Generating the Initial UI Draft",
+      "content_brief": "Walk through using Claude to generate the first iteration of a React component using Tailwind CSS. Focus on reviewing the generated JSX for structural correctness and adherence to the design spec.",
+      "has_code_example": true,
+      "code_language": "tsx",
+      "code_context": "A complete, standalone React component styled with Tailwind CSS"
+    },
+    {
+      "heading": "Iterative Refinement & Polishing",
+      "content_brief": "Demonstrate the feedback loop: asking for specific visual tweaks (e.g., 'increase whitespace', 'change to a dark theme') and fixing layout bugs. Explain how to provide targeted feedback rather than requesting a full rewrite.",
+      "has_code_example": true,
+      "code_language": "tsx",
+      "code_context": "Comparison of the initial draft vs. the refined version after specific AI prompts"
+    },
+    {
+      "heading": "Adding Interactivity and State",
+      "content_brief": "Guide the user on prompting for functional logic, such as handling form inputs, toggle states, or API data mapping. Show how to ask the AI to integrate React hooks (useState, useEffect) into the existing UI.",
+      "has_code_example": true,
+      "code_language": "tsx",
+      "code_context": "Adding state management and event handlers to the previously generated component"
+    },
+    {
+      "heading": "Ensuring Responsiveness and Accessibility",
+      "content_brief": "Cover how to prompt for mobile-first responsiveness using Tailwind's breakpoints. Discuss asking the AI to implement ARIA labels and keyboard navigation to ensure the component is accessible.",
+      "has_code_example": true,
+      "code_language": "tsx",
+      "code_context": "Implementation of responsive utility classes (sm:, md:, lg:) and accessibility attributes"
+    }
+  ],
+  "key_terms": [
+    "Utility-First CSS",
+    "Iterative Refinement",
+    "Componentization",
+    "Responsive Design",
+    "Prompt Specification"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_2",
+      "content": "AI may occasionally hallucinate Tailwind classes that don't exist or use outdated syntax. Always verify the generated classes against the official Tailwind CSS documentation."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_3",
+      "content": "If you have a rough sketch or a screenshot of a design, upload it to Claude. Multimodal prompting significantly improves the AI's ability to match visual layouts accurately."
+    }
+  ]
+}

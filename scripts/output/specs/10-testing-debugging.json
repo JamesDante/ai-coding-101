@@ -1,0 +1,69 @@
+{
+  "chapter_id": "10-testing-debugging",
+  "title": "Testing and Debugging",
+  "slug": "testing-debugging",
+  "sidebar_position": 4,
+  "category": "ai-assisted-development",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn to automate the generation of comprehensive test suites and leverage AI for rapid root cause analysis and debugging.",
+  "learning_objectives": [
+    "Generate comprehensive unit tests including edge cases using AI prompts",
+    "Create integration and regression test scenarios based on system requirements",
+    "Use AI to analyze stack traces and logs for rapid root cause identification",
+    "Implement an AI-assisted Test-Driven Development (TDD) workflow"
+  ],
+  "prerequisites": [
+    "Basic familiarity with a testing framework (e.g., PyTest, Jest, or JUnit)",
+    "General experience with AI prompting"
+  ],
+  "sections": [
+    {
+      "heading": "Automating Unit Test Generation",
+      "content_brief": "Explain how to use AI to analyze existing functions and generate a suite of unit tests. Focus on prompting the AI to identify boundary conditions, null values, and unexpected input types that a human might overlook.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A complex utility function paired with an AI-generated PyTest suite covering edge cases."
+    },
+    {
+      "heading": "Designing Integration and Regression Tests",
+      "content_brief": "Discuss using AI to map dependencies between modules to create integration tests. Cover how to provide the AI with API specifications or architectural diagrams to generate regression scripts that ensure new changes don't break existing features.",
+      "has_code_example": true,
+      "code_language": "javascript",
+      "code_context": "An integration test for an API endpoint involving a database call and a third-party service."
+    },
+    {
+      "heading": "AI-Powered Root Cause Analysis (RCA)",
+      "content_brief": "Demonstrate the process of feeding stack traces, error logs, and relevant code snippets into an AI to isolate bugs. Explain how to prompt for 'step-by-step reasoning' to avoid superficial fixes and find the actual root cause.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "A raw stack trace from a production crash followed by an AI analysis identifying the specific line of failure."
+    },
+    {
+      "heading": "The AI-Enhanced TDD Workflow",
+      "content_brief": "Introduce a modified Test-Driven Development loop: using AI to write the test first based on requirements, then using AI to generate the minimal code required to pass that test. Contrast this with traditional manual TDD.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A sequence showing a requirement -> AI-generated test -> AI-generated implementation."
+    }
+  ],
+  "key_terms": [
+    "Root Cause Analysis (RCA)",
+    "Regression Testing",
+    "Edge Case",
+    "Test-Driven Development (TDD)",
+    "Boundary Value Analysis"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_1",
+      "content": "AI can generate 'hallucinated' tests that pass because the test itself is logically flawed. Always manually review AI-generated assertions to ensure they actually validate the intended behavior."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_3",
+      "content": "When performing RCA, provide the AI with the version of the library or environment you are using; many bugs are version-specific and the AI can identify known issues in specific releases."
+    }
+  ]
+}

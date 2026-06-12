@@ -1,0 +1,118 @@
+---
+sidebar_position: 2
+title: "上下文工程"
+description: "掌握构建和压缩项目知识的艺术，以最大限度地提高 AI 的情境感知能力并减少幻觉。"
+---
+
+## 学习目标
+- 为 LLM 创建高密度的项目上下文文件
+- 使用 XML 标签来构建复杂的项目数据结构
+- 应用压缩技术，将大型代码库放入 context window 中
+- 建立一套工作流，以维护不断演进的项目记忆系统
+
+## 上下文瓶颈
+在与大语言模型 (LLM) 协作时，人们很容易想直接将仓库中的每个文件都丢进 prompt 中。这种被称为“原始上下文 (raw context)”的方法往往会适得其反。
+
+上下文工程 (Engineered context) 的核心在于提供高信号信息，同时剔除噪声。当你提供过多的无关数据时，会触发“迷失在中间 (lost in the middle)”现象，即模型会忽略淹没在大量文本中的指令。这会导致幻觉和性能下降。
+
+:::warning
+避免“上下文堆砌 (Context Stuffing)”。向项目中添加每一个文件并不会让 AI 变得更聪明；它通常会增加噪声，并导致 AI 忽略特定的指令。
+:::
+
+## 构建项目知识库
+与其依赖 LLM 来“摸索”你的项目，不如创建一个专门的记忆文件，例如 `PROJECT_CONTEXT.md`。该文件是 AI 实现情境感知的唯一事实来源 (single source of truth)。
+
+你的上下文文件应包含：
+- **技术栈 (Tech Stack)**：语言、框架和关键库。
+- **架构 (Architecture)**：核心模式（如 MVC、微服务）和数据流。
+- **命名规范 (Naming Conventions)**：变量、文件和组件的命名方式。
+- **业务逻辑约束 (Business Logic Constraints)**：绝不能违反的关键规则。
+
+```markdown title="PROJECT_CONTEXT.md"
+# Project Context: [Project Name]
+
+## Tech Stack
+- TypeScript, React, Node.js
+- Tailwind CSS for styling
+
+## Architecture
+- Uses a Repository pattern for data access.
+- State management via Zustand.
+
+## Rules & Conventions
+- Use functional components only.
+- Always include JSDoc comments for exported functions.
+```
+
+## 使用 XML 标签进行结构化
+LLM 非常擅长解析结构化数据。使用 XML 风格的标签（例如 `<architecture>`、`<constraints>`）有助于模型区分不同类型的指令和项目元数据。
+
+相比于纯文本块，结构化分隔符提供了清晰的边界，使 AI 能够更轻松地处理复杂的 prompt。
+
+```markdown title="prompt_with_tags.md"
+I need you to implement a new feature in our application.
+
+<project_goals>
+Implement a user authentication flow using JWT.
+</project_goals>
+
+<technical_constraints>
+- Use the existing `authService` module.
+- Ensure all routes are protected by the `requireAuth` middleware.
+- Do not modify the database schema.
+</technical_constraints>
+```
+
+## 上下文压缩技术
+随着项目的增长，你不可避免地会触及 context window 的极限。为了应对这一问题，可以使用“骨架化 (skeletonizing)”技术——即只提供代码结构而不提供具体的实现细节。
+
+通过提供函数签名和 docstring，但移除函数体内部的逻辑，你可以大幅降低 token 使用量，同时保持 AI 对组件间交互方式的理解。
+
+```typescript title="compression_example.ts"
+// --- 完整源文件 (高 Token 使用量) ---
+export const calculateTotal = (items: Item[]): number => {
+  return items.reduce((acc, item) => {
+    const tax = item.price * 0.15;
+    const total = item.price + tax;
+    return acc + total;
+  }, 0);
+};
+
+// --- 骨架版本 (低 Token 使用量) ---
+/**
+ * Calculates the total price including tax for an array of items.
+ */
+export const calculateTotal = (items: Item[]): number => {
+  // implementation omitted
+};
+```
+
+:::tip
+使用 'repomix' 或自定义脚本等工具，为你的上下文工程工作流自动生成目录结构和骨架文件。
+:::
+
+## 迭代记忆循环
+上下文工程不是一次性的任务，而是一个迭代的过程。随着功能的实现，项目的架构和规则也会发生变化。你必须更新 `PROJECT_CONTEXT.md`，以防止 AI 建议过时的模式。
+
+维护这一点的绝佳方法是请求 AI 协助你。在完成一项重大任务后，可以提示 LLM 为你的上下文文件提供更新建议。
+
+```markdown title="update_context_prompt.md"
+I have just finished implementing the Stripe integration. 
+
+Based on our recent conversation and the changes made to the codebase, 
+please suggest any necessary updates to our `PROJECT_CONTEXT.md` file 
+to reflect these new architectural patterns or dependencies.
+```
+
+## 练习
+为一个假设的小型项目（例如 Todo App）创建一个 `SKELETON_CONTEXT.md` 文件。其中应包含技术栈、一条架构规则，并使用 XML 标签来定义一个特定的编码约束。
+
+## 小结
+- 使用上下文工程而非原始文件堆砌，以避免“迷失在中间”效应。
+- 维护 `PROJECT_CONTEXT.md` 作为项目知识的唯一事实来源。
+- 利用 XML 标签在 prompt 中提供清晰的结构和边界。
+- 实施“骨架化”技术，将大型文件压缩进 context window。
+- 通过定期更新记忆文件，将上下文维护视为一个迭代循环。
+
+## 下一步
+在下一章中，我们将探索长任务分解——如何将复杂目标拆分为可靠的 Prompt 序列。

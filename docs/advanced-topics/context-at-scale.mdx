@@ -1,0 +1,182 @@
+---
+sidebar_position: 2
+title: "Context Engineering at Scale"
+description: "Master advanced techniques for managing massive codebases within LLM context windows to maintain precision and avoid hallucinations."
+---
+
+## Learning Objectives
+
+* Explain the "Lost in the Middle" phenomenon and its impact on large-context LLM recall.
+* Apply the four-stage context engineering pipeline: prune, map, skeletonise, inject.
+* Implement strategic pruning using AI-specific ignore files to reduce token noise.
+* Construct a hierarchical codebase map for high-density context injection.
+* Execute a zoom-in debugging workflow that resolves bugs in large repositories using under 10K tokens.
+
+## The Paradox of Large Context Windows
+
+Modern Large Language Models (LLMs) boast massive context windows, often exceeding 1 million tokens. This leads many developers into the "Token Trap": the assumption that more data equals better reasoning.
+
+In reality, models suffer from a phenomenon known as "Lost in the Namespace" or "Lost in the Middle." When you provide a massive prompt containing hundreds of files, the model's ability to recall information degrades significantly when the relevant data is located in the middle of the context window. The model prioritizes information at the very beginning and the very end of the prompt.
+
+Dumping an entire repository into a chat session creates high noise. This noise dilutes the Signal-to-Noise Ratio (SNR), leading to hallucinations, missed logic, and decreased reasoning quality. To maintain precision, you must move from "raw dumping" to "context engineering."
+
+:::warning
+Avoid the 'Token Trap': Just because a model supports 2 million tokens doesn't mean it can reason across all of them with equal precision. Always prefer curated context over raw dumps.
+:::
+
+## The Context Engineering Pipeline
+
+Context engineering applies four techniques in sequence, each reducing token volume and increasing signal density:
+
+```
+── CONTEXT ENGINEERING PIPELINE ───────────────────────────────────
+  Full Repository  (e.g. 2M tokens — everything on disk)
+       ↓ .cursorignore / .windsurfignore
+       ↓ remove node_modules, build artifacts, lockfiles, assets
+  Pruned Source    (~200K tokens — source code only)
+       ↓ CODEBASE_MAP.md
+       ↓ LLM reads index, identifies the relevant 2–3 modules
+  Targeted Module  (~20K tokens — files relevant to the task)
+       ↓ Skeletal code injection
+       ↓ strip implementations, keep signatures and types
+  Compressed View  (~3–5K tokens — API surface of adjacent code)
+       ↓ inject alongside task-specific full files
+  LLM Context Window  (signal-dense, low noise)
+```
+
+Each stage has a different purpose: **pruning** removes universally irrelevant files; **mapping** enables the LLM to self-navigate to relevant modules; **skeletonisation** compresses the API surface of adjacent code; **targeted injection** provides the one or two full files that actually need reading.
+
+## Strategic Pruning and Noise Reduction
+
+The first step in context engineering is reducing noise by excluding irrelevant files. You should use AI-specific ignore files—such as `.cursorignore` or `.windsurfignore`—to prevent the LLM from indexing or reading files that do not contribute to logic.
+
+By pruning build artifacts, lockfiles, and heavy dependencies, you increase the Signal-to-Noise Ratio (SNR), allowing the model to focus its attention on actual source code.
+
+```markdown title=".cursorignore"
+# Dependencies
+node_modules/
+bower_components/
+
+# Build outputs
+dist/
+build/
+out/
+*.pyc
+
+# Lockfiles (High noise, low signal)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Assets and Media
+*.png
+*.jpg
+*.svg
+*.mp4
+
+# Documentation & Logs
+docs/
+*.log
+```
+
+## Hierarchical Summarization: The Codebase Map
+
+When working with large projects, the LLM cannot "see" the whole tree at once without losing detail. Instead of providing every file, provide a `CODEBASE_MAP.md`. This is a high-density architectural overview that describes the directory structure and the responsibility of each module.
+
+This map acts as an index, allowing the AI to understand the project layout and specifically request only the files it needs to solve a problem.
+
+```markdown title="CODEBASE_MAP.md"
+# Project Architecture Map
+
+## Core Modules
+- `src/auth/`: Handles JWT validation, OAuth2 flows, and session management.
+- `src/api/`: Contains all RESTful route definitions and request validators.
+
+## Services
+- `src/services/payment/`: Logic for Stripe integration and transaction processing.
+- `src/services/email/`: Template rendering and SMTP transport logic.
+
+## Utilities
+- `src/utils/`: Shared helpers for date formatting and string manipulation.
+```
+
+:::tip
+Keep your CODEBASE_MAP.md updated as part of your PR process. A stale map is worse than no map, as it will lead the AI to reference non-existent files.
+:::
+
+## Context Compression: Skeletal Code Injection
+
+When you need to provide context for a large file, do not always provide the full implementation. Use "Skeletal Code"—a version of the file containing only function signatures, interfaces, and type definitions, stripped of the internal logic.
+
+This technique allows you to provide the "shape" of your entire API surface without consuming thousands of tokens on implementation details that aren't relevant to the current task.
+
+```typescript title="compression_example.ts"
+// --- FULL IMPLEMENTATION (High Token Usage) ---
+export const calculateTax = (amount: number, rate: number): number => {
+  const tax = amount * rate;
+  if (tax < 0) return 0;
+  console.log("Calculating...");
+  return tax;
+};
+
+// --- SKELETAL VERSION (Low Token Usage) ---
+export const calculateTax = (amount: number, rate: number): number => {};
+
+// --- INTERFACE ONLY (Minimal Token Usage) ---
+interface TaxCalculator {
+  calculateTax(amount: number, rate: number): number;
+}
+```
+
+## End-to-End Example: Debugging a Million-Token Project
+
+The "Zoom-In" method is the most effective way to debug complex, cross-module bugs in massive repositories. Instead of one large prompt, use a sequence of targeted interactions.
+
+```text title="End-to-End: The Zoom-In Debugging Workflow"
+User: "There is a bug in the checkout flow where discounts aren't applied correctly."
+
+── Context budget: 128K tokens available ───────────────────────────
+
+Step 1  Inject CODEBASE_MAP.md (1.2K tokens)
+        LLM reads the index and identifies /services/payment as relevant.
+        Tokens used so far: ~1.5K
+
+Step 2  Request skeletal view of /services/payment (2 files, 480 tokens)
+        LLM: "I see paymentService.ts and stripeAdapter.ts. The discount
+              logic lives in paymentService. Please provide the full file."
+
+Step 3  Inject full paymentService.ts (3.8K tokens)
+        Total prompt: ~6K tokens (well within the 128K budget)
+        LLM: "Found it. Line 45 shadows the outer `discount` variable with
+              a local `const discount = 0` inside the if-block. The outer
+              value is never used when a promo code is applied."
+
+Final   Targeted fix applied — no repo dump, no noise, 6K tokens used
+        instead of a potential 400K+ raw dump.
+```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| LLM references a module or file that doesn't exist | `CODEBASE_MAP.md` is stale after a refactor | Update the map as part of your PR review checklist |
+| Relevant code retrieved but answer is still wrong | Skeletal code stripped too much — missing type constraints or default values | Keep full signatures with type annotations and doc-comments |
+| Context window fills up even after pruning | `.cursorignore` missing large test-fixture directories or auto-generated files | Profile token usage with a tokenizer CLI; add the biggest offenders to the ignore file |
+| LLM misses a bug that's clearly in the provided file | Lost in the Middle — the critical file was injected between many others | Move the most important file to the very beginning or end of the prompt |
+| LLM repeatedly requests the same unrelated file | `CODEBASE_MAP.md` descriptions are too vague (e.g., "utils — helpers") | Write one specific sentence per module describing its exact responsibility |
+
+## Exercise
+
+Create a `CODEBASE_MAP.md` for a hypothetical Python web application. Include at least three directories (e.g., `app/models`, `app/routes`, `app/utils`) and provide a one-sentence functional description for each.
+
+## Summary
+
+* **Lost in the Middle**: LLMs recall information at the beginning and end of a prompt most reliably; context in the middle degrades in quality.
+* **Four-stage pipeline**: prune irrelevant files → map the codebase → skeletonise adjacent code → inject only the files the task needs.
+* **Signal-to-Noise Ratio (SNR)**: Use `.cursorignore` to remove non-essential files like lockfiles and build artifacts.
+* **CODEBASE_MAP.md**: An architectural index lets the LLM self-navigate to relevant modules without seeing every file.
+* **Skeletal Code**: Provide only function signatures and types for files adjacent to the task; reserve full implementations for files being changed.
+
+## What's Next
+
+In the next chapter, we will explore Coding Agent Architecture — the internal loop, planner, and tool executor that power autonomous agents.

@@ -1,0 +1,76 @@
+{
+  "chapter_id": "05-context-engineering",
+  "title": "Context Engineering",
+  "slug": "context-engineering",
+  "sidebar_position": 2,
+  "category": "prompt-engineering",
+  "difficulty": "intermediate",
+  "estimated_minutes": 25,
+  "description": "Master the art of structuring and compressing project knowledge to maximize AI situational awareness and reduce hallucinations.",
+  "learning_objectives": [
+    "Create a high-density project context file for LLM consumption",
+    "Implement XML tagging to structure complex project data",
+    "Apply compression techniques to fit large codebases into the context window",
+    "Establish a workflow for maintaining an evolving project memory system"
+  ],
+  "prerequisites": [
+    "Basic understanding of LLM context windows",
+    "Fundamental prompting skills"
+  ],
+  "sections": [
+    {
+      "heading": "The Context Bottleneck",
+      "content_brief": "Explain the difference between 'raw' context (dumping files) and 'engineered' context. Discuss why too much irrelevant information leads to 'lost in the middle' phenomena and hallucinations.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Building a Project Knowledge Base",
+      "content_brief": "Guide the reader in creating a dedicated memory file (e.g., PROJECT_CONTEXT.md). Detail exactly what to include: tech stack, core architectural patterns, naming conventions, and critical business logic constraints.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A template for a comprehensive project context file including sections for Tech Stack, Architecture, and Rules."
+    },
+    {
+      "heading": "Structuring with XML Tags",
+      "content_brief": "Demonstrate how to use XML-style tags (e.g., <architecture>, <constraints>) to help Claude parse different types of information. Explain why structured delimiters are more effective than plain text for complex instructions.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "An example prompt using XML tags to separate project goals from technical constraints."
+    },
+    {
+      "heading": "Context Compression Techniques",
+      "content_brief": "Teach methods for reducing token usage without losing meaning. Cover 'skeletonizing' code (providing function signatures and docstrings but removing implementation bodies) and creating directory maps.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "Comparison between a full source file and its compressed 'skeleton' version for context delivery."
+    },
+    {
+      "heading": "The Iterative Memory Loop",
+      "content_brief": "Explain the process of updating the context file as the project evolves. Discuss how to ask the AI to suggest updates to the memory file after a major feature implementation.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A prompt used to instruct Claude to update the PROJECT_CONTEXT.md based on recent changes."
+    }
+  ],
+  "key_terms": [
+    "Context Window",
+    "Token Compression",
+    "Skeletonizing",
+    "Situational Awareness",
+    "Lost in the Middle"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_1",
+      "content": "Avoid 'Context Stuffing.' Adding every file in your project doesn't make the AI smarter; it often increases noise and leads to the AI ignoring specific instructions."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_4",
+      "content": "Use tools like 'repomix' or custom scripts to automatically generate directory structures and skeleton files for your context engineering workflow."
+    }
+  ]
+}

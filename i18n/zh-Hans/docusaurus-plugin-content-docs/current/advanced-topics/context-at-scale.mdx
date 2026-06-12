@@ -1,0 +1,182 @@
+---
+sidebar_position: 2
+title: "大规模上下文工程"
+description: "掌握在 LLM 上下文窗口中管理海量代码库的高级技术，以保持精度并避免幻觉。"
+---
+
+## 学习目标
+
+* 解释 "Lost in the Middle"（迷失在中间）现象及其对长上下文 LLM 召回率的影响。
+* 应用四阶段上下文工程流水线：剪枝、建图、骨架化、注入。
+* 使用 AI 特有的忽略文件实现策略性剪枝，以减少 token 噪声。
+* 构建层级化代码库地图，用于高密度上下文注入。
+* 执行缩放式调试工作流，在大型仓库中使用不超过 10K token 解决 bug。
+
+## 大上下文窗口的悖论
+
+现代大语言模型 (LLM) 拥有巨大的上下文窗口，通常超过 100 万个 token。这导致许多开发者陷入了“Token 陷阱”：即认为数据越多，推理能力就越强。
+
+然而在现实中，模型会遭遇被称为 "Lost in the Middle"（迷失在中间）或 "Lost in the Namespace"（迷失在命名空间）的现象。当你提供一个包含数百个文件的庞大 prompt 时，如果相关数据位于上下文窗口的中间部分，模型的检索能力会显著下降。模型会优先处理 prompt 最开头和最末尾的信息。
+
+将整个代码仓库直接”倾倒”到对话 session 中会产生极高的噪声。这种噪声会稀释信噪比 (SNR)，导致幻觉、逻辑遗漏以及推理质量下降。为了保持精度，你必须从”原始倾倒”转向”上下文工程”。
+
+:::warning
+避免”Token 陷阱”：仅仅因为一个模型支持 200 万个 token，并不意味着它能以同样的精度在所有内容中进行推理。始终优先选择经过筛选的上下文，而不是原始的数据倾倒。
+:::
+
+## 上下文工程流水线
+
+上下文工程通过四个阶段依次处理，每个阶段都减少 token 用量并提升信号密度：
+
+```
+── 上下文工程流水线 ─────────────────────────────────────────────
+  完整代码仓库（例如 200 万 token——磁盘上的所有内容）
+       ↓ .cursorignore / .windsurfignore
+       ↓ 移除 node_modules、构建产物、lockfiles、资源文件
+  剪枝后的源码（约 20 万 token——仅源代码）
+       ↓ CODEBASE_MAP.md
+       ↓ LLM 读取索引，定位 2–3 个相关模块
+  目标模块（约 2 万 token——与任务相关的文件）
+       ↓ 骨架代码注入
+       ↓ 剥离实现，保留函数签名和类型定义
+  压缩视图（约 3000–5000 token——相邻代码的 API 表面）
+       ↓ 与任务相关的完整文件一起注入
+  LLM 上下文窗口（信号密度高，噪声低）
+```
+
+每个阶段的作用各不相同：**剪枝**移除普遍无关的文件；**建图**让 LLM 能自主导航到相关模块；**骨架化**压缩相邻代码的 API 表面；**精准注入**仅提供真正需要阅读的一两个完整文件。
+
+## 策略性剪枝与降噪
+
+上下文工程的第一步是通过排除无关文件来减少噪声。你应该使用 AI 特有的忽略文件——例如 `.cursorignore` 或 `.windsurfignore`——来防止 LLM 索引或读取对逻辑没有贡献的文件。
+
+通过剪枝构建产物、lockfiles 和沉重的依赖项，你可以提高信噪比 (SNR)，让模型将注意力集中在实际的源代码上。
+
+```markdown title=".cursorignore"
+# 依赖项
+node_modules/
+bower_components/
+
+# 构建输出
+dist/
+build/
+out/
+*.pyc
+
+# Lockfiles（高噪声，低信号）
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 资源与媒体
+*.png
+*.jpg
+*.svg
+*.mp4
+
+# 文档与日志
+docs/
+*.log
+```
+
+## 层级化摘要：代码库地图
+
+在处理大型项目时，LLM 无法在不丢失细节的情况下一次性“看到”整个树状结构。与其提供每一个文件，不如提供一个 `CODEBASE_MAP.md`。这是一个高密度的架构概览，描述了目录结构和每个模块的职责。
+
+该地图充当索引，允许 AI 理解项目布局，并专门请求解决问题所需的特定文件。
+
+```markdown title="CODEBASE_MAP.md"
+# 项目架构地图
+
+## 核心模块
+- `src/auth/`: 处理 JWT 验证、OAuth2 流程和会话管理。
+- `src/api/`: 包含所有 RESTful 路由定义和请求校验器。
+
+## 服务层
+- `src/services/payment/`: 用于 Stripe 集成和交易处理的逻辑。
+- `src/services/email/`: 模板渲染和 SMTP 传输逻辑。
+
+## 工具类
+- `src/utils/`: 用于日期格式化和字符串操作的共享辅助函数。
+```
+
+:::tip
+将更新 `CODEBASE_MAP.md` 作为你 PR 流程的一部分。过时的地图比没有地图更糟糕，因为它会导致 AI 引用不存在的文件。
+:::
+
+## 上下文压缩：骨架代码注入
+
+当你需要为大型文件提供上下文时，不要总是提供完整的实现。使用“骨架代码 (Skeletal Code)”——即一个仅包含函数签名、接口和类型定义，但剥离了内部逻辑的文件版本。
+
+这种技术允许你在不为与当前任务无关的实现细节消耗数千个 token 的情况下，提供整个 API 表面（API surface）的“轮廓”。
+
+```typescript title="compression_example.ts"
+// --- 完整实现（高 Token 消耗） ---
+export const calculateTax = (amount: number, rate: number): number => {
+  const tax = amount * rate;
+  if (tax < 0) return 0;
+  console.log("正在计算...");
+  return tax;
+};
+
+// --- 骨架版本（低 Token 消耗） ---
+export const calculateTax = (amount: number, rate: number): number => {};
+
+// --- 仅保留接口（极低 Token 消耗） ---
+interface TaxCalculator {
+  calculateTax(amount: number, rate: number): number;
+}
+```
+
+## 端到端示例：调试百万级 Token 的项目
+
+“缩放 (Zoom-In)”法是调试大规模仓库中复杂的跨模块 bug 最有效的方法。与其使用一个巨大的 prompt，不如使用一系列有针对性的交互。
+
+```text title=”端到端：缩放式调试工作流”
+用户：”结账流程中有一个 bug，折扣没有被正确应用。”
+
+── 上下文预算：可用 128K token ────────────────────────────────
+
+第 1 步  注入 CODEBASE_MAP.md（1200 token）
+        LLM 读取索引后，识别出 /services/payment 为相关模块。
+        当前已用 token：约 1500
+
+第 2 步  请求 /services/payment 的骨架视图（2 个文件，480 token）
+        LLM：”我看到了 paymentService.ts 和 stripeAdapter.ts。
+              折扣逻辑在 paymentService 中，请提供完整文件。”
+
+第 3 步  注入完整的 paymentService.ts（3800 token）
+        总 prompt：约 6000 token（远低于 128K 预算）
+        LLM：”找到了。第 45 行在 if 块内部用 `const discount = 0`
+              遮蔽了外层的 `discount` 变量。当促销码被应用时，
+              外层的值从未被使用。”
+
+最终结果  精准修复已应用——无需倾倒仓库，无噪声，
+         仅使用了约 6000 token，而非可能超过 40 万 token 的原始倾倒。
+```
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| LLM 引用了不存在的模块或文件 | 重构后 `CODEBASE_MAP.md` 未及时更新 | 将更新地图纳入 PR 审查检查清单 |
+| 检索到相关代码，但答案仍然错误 | 骨架代码去除过度——缺少类型约束或默认值 | 保留完整的函数签名，包括类型注解和文档注释 |
+| 剪枝后上下文窗口仍然填满 | `.cursorignore` 遗漏了大型测试夹具目录或自动生成的文件 | 使用 tokenizer CLI 分析 token 用量，将最大的占用项加入忽略文件 |
+| LLM 遗漏了明显存在于提供文件中的 bug | 迷失在中间——关键文件被夹在大量其他内容之间 | 将最重要的文件移至 prompt 的最开头或最末尾 |
+| LLM 反复请求同一个无关文件 | `CODEBASE_MAP.md` 描述过于模糊（例如"utils——工具函数"） | 为每个模块写一句具体说明其确切职责的描述 |
+
+## 练习
+
+为一个假设的 Python Web 应用程序创建一个 `CODEBASE_MAP.md`。至少包含三个目录（例如 `app/models`, `app/routes`, `app/utils`），并为每个目录提供一句功能描述。
+
+## 小结
+
+* **Lost in the Middle**：LLM 对 prompt 开头和末尾的信息召回最可靠；中间部分的上下文质量会下降。
+* **四阶段流水线**：剪枝无关文件 → 建立代码库地图 → 骨架化相邻代码 → 仅注入任务所需文件。
+* **信噪比 (SNR)**：使用 `.cursorignore` 移除 lockfiles 和构建产物等非必要文件。
+* **CODEBASE_MAP.md**：架构索引让 LLM 能自主导航到相关模块，而无需查看每一个文件。
+* **骨架代码**：对任务相邻的文件只提供函数签名和类型定义；为正在修改的文件保留完整实现。
+
+## 下一步
+
+在下一章中，我们将探索编程智能体架构——驱动自主智能体的内部循环、规划器和工具执行器。

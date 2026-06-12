@@ -1,0 +1,76 @@
+{
+  "chapter_id": "06-long-task-decomposition",
+  "title": "Long Task Decomposition",
+  "slug": "long-task-decomposition",
+  "sidebar_position": 3,
+  "category": "prompt-engineering",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn how to decompose complex SaaS features into small, manageable tasks that AI can implement reliably without errors.",
+  "learning_objectives": [
+    "Define the criteria for an 'atomic' implementation task",
+    "Create a sequential roadmap for a complex feature based on technical dependencies",
+    "Use AI as a technical architect to generate decomposition lists",
+    "Implement a verification loop to ensure each step is correct before proceeding"
+  ],
+  "prerequisites": [
+    "Basic prompt engineering knowledge",
+    "Understanding of LLM context window limitations"
+  ],
+  "sections": [
+    {
+      "heading": "The Failure of Monolithic Prompts",
+      "content_brief": "Explain why asking an AI to 'build a whole feature' leads to hallucinations, omitted code (comments like // ... rest of code here), and logic errors. Contrast the monolithic approach with the decomposed approach.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Defining Atomic Tasks",
+      "content_brief": "Define 'atomic tasks' as units of work that are single-responsibility and fully testable. Provide a comparison between a 'too large' task (e.g., 'Build the billing system') and 'atomic' tasks (e.g., 'Create the Stripe webhook handler').",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "Comparison of a monolithic prompt versus a series of atomic prompts for a specific feature."
+    },
+    {
+      "heading": "Mapping Technical Dependencies",
+      "content_brief": "Teach the order of operations for decomposition: Database Schema -> Backend Logic/API -> Frontend Integration -> Edge Case Handling. Explain why following this sequence prevents constant refactoring.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A step-by-step implementation roadmap for a 'User Subscription' feature."
+    },
+    {
+      "heading": "Using AI as the Architect",
+      "content_brief": "Demonstrate how to use a 'Meta-Prompt' to force the AI to act as a Technical Lead. Show how to ask the AI to break down a requirement into a checklist before any code is written.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A prompt template that instructs the AI to decompose a feature into a numbered list of implementation steps."
+    },
+    {
+      "heading": "The Execution and Verification Loop",
+      "content_brief": "Describe the workflow: Execute one atomic task -> Run tests/Verify output -> Feed verification results back to AI -> Move to next task. Explain why skipping verification leads to 'error compounding'.",
+      "has_code_example": true,
+      "code_language": "bash",
+      "code_context": "Example of a terminal-based verification loop (running a test and pasting the error back into the AI)."
+    }
+  ],
+  "key_terms": [
+    "Atomic Task",
+    "Context Drift",
+    "Dependency Mapping",
+    "Error Compounding",
+    "Meta-Prompting"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_2",
+      "content": "Avoid 'over-decomposition.' If tasks are too small (e.g., creating a single variable), the AI may lose the broader context of why the code is being written, leading to fragmented logic."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_5",
+      "content": "Maintain a 'Progress Log' in a separate markdown file. Paste this log into each new prompt so the AI knows exactly which steps of the decomposition are complete and what remains."
+    }
+  ]
+}

@@ -1,0 +1,260 @@
+---
+sidebar_position: 3
+title: "构建 Agent 平台"
+description: "构建一个自定义工作流引擎，用于编排 AI agent、管理状态并执行工具。"
+---
+
+## 学习目标
+
+- 为 agent 记忆设计状态管理系统。
+- 实现一个工具执行调度器，连接 LLM 调用与代码。
+- 构建自主编排循环（思考-行动-观察）。
+- 从零开始构建一个完整的端到端 agent 工作流。
+
+## Agent 平台的架构
+
+大多数 LLM 实现遵循线性链式结构：用户输入 → Prompt → LLM → 输出。虽然这对于简单任务非常有效，但链式结构无法从错误中恢复，也无法动态使用外部工具。
+
+Agent 平台使用的是**代理循环 (agentic loop)**。系统不再是单向传递，而是进入一个循环，LLM 可以针对下一步该做什么进行”思考 (reason)”，并通过调用工具来进行”行动 (act)”。这被称为 **ReAct (Reason + Act) 模式**。其架构包含三个核心支柱：
+
+1.  **大脑 (LLM)：** 根据当前的观察结果决定采取哪种行动。
+2.  **记忆 (状态管理器)：** 存储思考、行动和观察的历史记录。
+3.  **双手 (工具调度器)：** 执行大脑请求的实际代码或 API 调用。
+
+```
+── AGENT 平台架构 ──────────────────────────────────────────────────
+  用户输入
+       ↓
+  ┌──── LLM（大脑）────────────────────────────────────────────────┐
+  │  读取：    状态管理器（消息历史 + 变量）                         │
+  │  输出：    tool_call {“name”: ..., “arguments”: {...}}          │
+  │        或  最终答案文本（无 tool_calls）                         │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ tool_call
+  ┌──── 工具调度器（双手）─────────────────────────────────────────┐
+  │  注册表：{calculator, search, file_read, …}                    │
+  │  执行：   tools[name](**arguments) → 返回观察结果               │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ 观察结果写回状态管理器
+  ─────── 循环直到 tool_calls 为空 ────────────────────────────────
+       ↓
+  最终答案返回给用户
+```
+
+## 设计状态管理器
+
+状态管理器是 agent 的短期记忆。它必须跟踪对话历史，这样当工具返回结果时，LLM 才能理解该结果的上下文。我们将其实现为一个类，用于管理消息列表和用于持久化变量的键值存储。
+
+```python title="state_manager.py"
+class State:
+    def __init__(self):
+        # 存储对话历史（消息）
+        self.messages = []
+        # 存储任意数据，例如搜索结果或计算输出
+        self.variables = {}
+
+    def add_message(self, role: str, content: str):
+        self.messages.append({"role": role, "content": content})
+
+    def set_variable(self, key: str, value: any):
+        self.variables[key] = value
+
+    def get_context(self):
+        """返回格式化后的历史记录以供 LLM 使用。"""
+        return self.messages
+```
+
+:::tip
+对于生产级平台，考虑使用 Redis 或 PostgreSQL 等数据库进行状态管理，而不是使用内存对象，以便实现跨会话的持久化。
+:::
+
+## 工具调度器
+
+工具调度器充当 LLM 基于文本的指令与你的 Python 代码之间的桥梁。它维护着一个可用函数的注册表。当 LLM 输出特定的工具调用时，调度器会找到匹配的函数并执行它。
+
+```python title="dispatcher.py"
+class ToolRegistry:
+    def __init__(self):
+        self.tools = {}
+
+    def register(self, func):
+        """将函数注册为工具的装饰器。"""
+        self.tools[func.__name__] = func
+        return func
+
+    def execute(self, tool_name: str, arguments: dict):
+        if tool_name not in self.tools:
+            return f"Error: Tool '{tool_name}' not found."
+        
+        try:
+            # 使用提供的参数动态调用已注册的函数
+            return self.tools[tool_name](**arguments)
+        except Exception as e:
+            return f"Error executing tool: {str(e)}"
+```
+
+:::warning
+务必在你的编排引擎中实现最大迭代限制（例如 10 次循环），以防止 agent 卡住时出现死循环和失控的 API 成本。
+:::
+
+## 实现编排循环
+
+编排循环是平台的“心跳”。它遵循一个持续的循环：
+1.  **思考 (Think)：** 将当前状态发送给 LLM。
+2.  **行动 (Act)：** 解析 LLM 的响应以查找工具调用。
+3.  **观察 (Observe)：** 通过调度器执行工具并捕获输出。
+4.  **重复 (Repeat)：** 将观察结果反馈到状态中，并再次循环，直到得出最终答案。
+
+```python title="orchestrator.py"
+def run_agent_loop(llm_client, registry, state, max_steps=5):
+    for _ in range(max_steps):
+        # 1. 思考：从当前状态获取 LLM 响应
+        response = llm_client.chat(state.get_context())
+
+        # 最终答案——未请求工具调用
+        if not response.tool_calls:
+            state.add_message("assistant", response.content)
+            break
+
+        # 2. 行动 & 3. 观察——tool_calls 是字典列表
+        for tool_call in response.tool_calls:
+            result = registry.execute(
+                tool_call["name"],
+                tool_call["arguments"],
+            )
+            state.add_message("tool", str(result))
+            state.set_variable(tool_call["name"], result)
+
+    return state.messages[-1]["content"]
+```
+
+## 端到端示例：研究型 Agent
+
+在这个示例中，我们组合所有组件，创建一个功能完备的 agent，它可以利用 `calculator`（计算器）和 `search`（搜索）工具来回答复杂查询。
+
+```text title="端到端：研究型 Agent 工作流"
+用户: "144 的平方根加 10 是多少？"
+
+初始状态: [{"role": "user", "content": "144 的平方根加 10 是多少？"}]
+
+── 循环第 1 次 ──────────────────────────────────────────────────────
+思考     LLM 读取状态 → 输出 tool_call：
+         {"name": "calculator", "arguments": {"a": 144, "op": "sqrt"}}
+行动     调度器调用 calculator(a=144, op="sqrt") → 12.0
+观察     状态：[..., {"role": "tool", "content": "12.0"}]
+
+── 循环第 2 次 ──────────────────────────────────────────────────────
+思考     LLM 读取更新后的状态 → 看到 "12.0" → 输出 tool_call：
+         {"name": "calculator", "arguments": {"a": 12.0, "op": "add", "b": 10}}
+行动     调度器调用 calculator(a=12.0, op="add", b=10) → 22.0
+观察     状态：[..., {"role": "tool", "content": "22.0"}]
+
+── 循环第 3 次 ──────────────────────────────────────────────────────
+思考     LLM 读取状态 → 不再需要工具 → 输出最终答案：
+         "144 的平方根是 12，加上 10 等于 22。"
+         tool_calls = []  →  循环退出
+
+最终答案："144 的平方根是 12，加上 10 等于 22。"
+```
+
+```python title="complete_agent.py"
+# --- 组件 ---
+
+class State:
+    def __init__(self):
+        self.messages = []
+    def add_message(self, role, content):
+        self.messages.append({"role": role, "content": content})
+    def get_context(self):
+        return self.messages
+
+class ToolRegistry:
+    def __init__(self):
+        self.tools = {}
+    def register(self, func):
+        self.tools[func.__name__] = func
+        return func
+    def execute(self, name, args):
+        return self.tools[name](**args)
+
+# --- 模拟 LLM 客户端 (模拟工具调用) ---
+
+class MockLLM:
+    def chat(self, messages):
+        last_msg = messages[-1]["content"]
+        # 模拟 agent 决定使用工具的逻辑
+        if "square root of 144" in last_msg and len(messages) < 3:
+            class Response:
+                content = ""
+                tool_calls = [{"name": "calculator", "arguments": {"a": 144, "op": "sqrt"}}]
+            return Response()
+        elif "12" in str(messages) and len(messages) < 5:
+            class Response:
+                content = ""
+                tool_calls = [{"name": "calculator", "arguments": {"a": 12, "op": "add", "b": 10}}]
+            return Response()
+        else:
+            class Response:
+                content = "The final answer is 22."
+                tool_calls = []
+            return Response()
+
+# --- 实现 ---
+
+registry = ToolRegistry()
+
+@registry.register
+def calculator(a, op, b=None):
+    if op == "sqrt": return a**0.5
+    if op == "add": return a + b
+    return 0
+
+def run_platform(query):
+    state = State()
+    state.add_message("user", query)
+    llm = MockLLM()
+    
+    print(f"🚀 开始 Agent 任务：{query}\n")
+    
+    for i in range(5):
+        context = state.get_context()
+        response = llm.chat(context)
+        
+        if not response.tool_calls:
+            print(f"🏁 最终响应: {response.content}")
+            break
+            
+        for call in response.tool_calls:
+            print(f"🛠️  行动：调用 {call['name']}，参数为 {call['arguments']}")
+            result = registry.execute(call['name'], call['arguments'])
+            print(f"👁️  观察：{result}")
+            state.add_message("tool", str(result))
+
+if __name__ == "__main__":
+    run_platform("What is the square root of 144 plus 10?")
+```
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| 调度时出现 `KeyError: 'name'` 或 `AttributeError: 'name'` | tool_call 访问方式不一致——混用对象属性（`.name`）和字典键（`["name"]`） | 统一使用字典访问：`tool_call["name"]`、`tool_call["arguments"]` |
+| Agent 循环到 `max_steps` 仍未返回答案 | LLM 持续输出 tool_calls 而非最终答案；缺少退出条件 | 检查系统提示词是否指示 LLM 在最后一步输出纯文本（无 tool_call） |
+| 状态无限增长，上下文窗口溢出 | 每次迭代都追加工具输出，从不裁剪 | 限制对话历史：只保留最近 N 条消息，或在追加前对旧消息进行摘要 |
+| 最终答案返回空字符串 | 在检查 `tool_calls` 之前就调用了 `state.add_message("assistant", ...)`，追加了空内容消息 | 仅在 `not response.tool_calls`（最终答案）时才添加 assistant 消息 |
+| 工具调用时出现 `TypeError`（参数名称不匹配） | LLM 幻觉出函数签名中不存在的参数名 | 在调用前校验 `arguments` 的键是否与函数签名一致；不匹配时返回描述性错误字符串 |
+
+## 练习
+
+扩展上述代码中的 `ToolRegistry`，添加一个名为 `multiply`（乘法）的新工具。使用 `@registry.register` 装饰器进行注册，并更新 `MockLLM` 的逻辑，使其在三步计算过程中调用这个新工具（例如：“将 2 乘以 5，然后加上 10”）。
+
+## 小结
+
+- **Agentic Loops (代理循环)** 允许 LLM 通过“思考-行动-观察”循环与现实世界进行交互。
+- **State Management (状态管理)** 对于维护工具输出和对话历史的上下文至关重要。
+- **Tool Dispatchers (工具调度器)** 提供了一种安全、结构化的方式，将 LLM 的文本指令映射到可执行代码。
+- **ReAct Pattern (ReAct 模式)** 是设计自主 agent 架构的行业标准。
+
+## 下一步
+
+在下一章中，我们将探索 RAG（检索增强生成）——让 LLM 的回答扎根于你自己的数据。

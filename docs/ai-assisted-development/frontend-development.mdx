@@ -1,0 +1,198 @@
+---
+sidebar_position: 1
+title: "Frontend Development"
+description: "Learn to rapidly prototype and build responsive React components using Claude and Tailwind CSS."
+---
+
+## Learning Objectives
+
+- Generate a high-fidelity UI component using structured AI prompts
+- Apply Tailwind CSS utility classes through iterative refinement with an LLM
+- Implement interactive state logic in AI-generated React components
+- Optimize AI-generated layouts for mobile responsiveness and accessibility
+
+## Defining Component Requirements
+
+The quality of your UI depends entirely on the clarity of your initial instructions. When working with an AI assistant (Claude, GPT-4o, or Cursor), avoid vague requests like "make a pricing table." Instead, use a "specification prompt" that defines the component's purpose, visual style, required props, and technical constraints.
+
+A detailed specification reduces the need for massive rewrites later. You should explicitly mention the tech stack (React and Tailwind CSS) and describe the desired aesthetic, such as "minimal    minimalist," "glassmorphism," or "high-density."
+
+```text title="specification.txt"
+Create a React component for a Pricing Card using Tailwind CSS. 
+
+Requirements:
+- Three tiers: Basic, Pro, and Enterprise.
+- Visual Style: Modern, clean, with a subtle border and soft shadows.
+- Features: A "Most Popular" badge on the Pro tier.
+- Props: Accept an array of features as strings.
+- Constraints: Use only standard Tailwind utility classes.
+```
+
+## Generating the Initial UI Draft
+
+Once you have your specification, use the AI to generate the first iteration. This stage is about structural correctness. Review the generated JSX to ensure the HTML elements are semantic and that the Tailwind classes align with your design intent.
+
+```tsx title="PricingCard.tsx"
+import React from 'react';
+
+interface FeatureProps {
+  features: string[];
+}
+
+const PricingCard = ({ features }: FeatureProps) => {
+  return (
+    <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-900">Pro Plan</h3>
+      <p className="mt-4 text-gray-600">$29/month</p>
+      <ul className="mt-6 space-y-4">
+        {features.map((feature, index) => (
+          <li key={index} className="flex items-center text-sm text-gray-500">
+            <span className="mr-2 text-green-500">✓</span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <button className="mt-8 w-full py-2 px-4 bg-blue-600 text-white rounded-md font-medium">
+        Get Started
+      </button>
+    </div>
+  );
+};
+
+export default PricingCard;
+```
+
+:::warning
+AI may occasionally hallucinate Tailwind classes that don't exist or use outdated syntax. Always verify the generated classes against the official Tailwind CSS documentation.
+:::
+
+## Iterative Refinement & Polging
+
+Rarely is the first draft perfect. Instead of asking for a full rewrite, provide targeted feedback to refine specific elements. This "feedback loop" allows you to tweak whitespace, typography, or color palettes incrementally.
+
+For example, if the component feels cramped, ask the AI to "increase the vertical padding and add more breathing room between items."
+
+```tsx title="RefinedPricingCard.tsx"
+import React from 'react';
+
+const RefinedPricingCard = () => {
+  return (
+    <div className="p-8 bg-slate-50 border border-slate/20 rounded-2xl shadow-lg">
+      <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Pro Plan</h3>
+      <p className="mt-2 text-lg text-slate-600">$29/month</p>
+      <ul className="mt-8 space-y-5">
+        {['Unlimited Projects', 'Priority Support', 'Custom Domains'].map((feature) => (
+          <li key={feature} className="flex items-center text-base text-slate-700">
+            <span className="mr-3 flex-shrink-0 h-5 w-5 text-blue-500">
+              {/* Icon placeholder */}
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            </span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <button className="mt-10 w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors">
+        Get Started
+      </button>
+    </div>
+  );
+};
+
+export default RefinedPricingCard;
+```
+
+:::tip
+If you have a rough sketch or a screenshot of a design, upload it to a multimodal AI (Claude or GPT-4o). Multimodal prompting significantly improves the AI's ability to match visual layouts accurately.
+:::
+
+## Adding Interactivity and State
+
+A UI component becomes a functional feature when you add logic. You can prompt the AI to integrate React hooks like `useState` or `useEffect`. Focus your prompts on specific behaviors, such as handling a toggle for monthly vs. yearly billing or managing form input states.
+
+```tsx title="InteractivePricingCard.tsx"
+import React, { useState } from 'react';
+
+const InteractivePricingCard = () => {
+  const [isYearly, setIsYearly] = useState(false);
+
+  return (
+    <div className="p-6 bg-white rounded-xl shadow-md">
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-sm font-medium text-gray-500">Billing Cycle</span>
+        <button 
+          onClick={() => setIsYearly(!isYearly)}
+          className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors"
+        >
+          <span className={`${isYearly ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+        </button>
+      </div>
+      
+      <h3 className="text-lg font-bold">Pro Plan</h3>
+      <p className="text-2xl font-bold text-blue-600">
+        {isYearly ? '$290' : '$29'}<span className="text-sm text-gray-500 font-normal">/year</span>
+      </p>
+    </div>
+  );
+};
+
+export default InteractivePricingCard;
+```
+
+## Ensuring Responsiveness and Accessibility
+
+The final step is ensuring your component works for everyone, on every device. Use Tailwind's responsive modifiers (e.g., `md:`, `lg:`) to adjust layouts for different screen sizes. Additionally, prompt the AI to include ARIA labels and keyboard-friendly attributes to meet accessibility standards.
+
+```tsx title="AccessiblePricingCard.tsx"
+import React from 'react';
+
+const AccessiblePricingCard = () => {
+  return (
+    <div className="flex flex-col md:flex-row gap-6 p-4">
+      <section 
+        className="w-full md:w-1/2 p-6 bg-white border rounded-lg focus-within:ring-2 focus-within:ring-blue-500"
+        aria-labelledby="card-title"
+      >
+        <h3 id="card-title" className="text-xl font-bold">Standard Plan</h3>
+        <p className="mt-2 text-gray-600">Perfect for individuals starting their journey.</p>
+        <button 
+          aria-label="Select Standard Plan"
+          className="mt-4 w-full py-2 bg-gray-800 text-white rounded hover:bg-black transition-colors"
+        >
+          Choose Plan
+        </button>
+      </section>
+
+      <section 
+        className="w-full md:w-1/2 p-6 bg-blue-50 border border-blue-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500"
+        aria-labelledby="card-title-pro"
+      >
+        <h3 id="card-title-pro" className="text-xl font-bold text-blue-900">Pro Plan</h3>
+        <p className="mt-2 text-blue-800">Advanced features for growing teams.</p>
+        <button 
+          aria-label="Select Pro Plan"
+          className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          Choose Plan
+        </button>
+      </section>
+    </div>
+  );
+};
+
+export default AccessiblePricingCard;
+```
+
+## Exercise
+
+Create a "User Profile Card" component. Use a detailed specification prompt to define its look (e.g., an avatar, name, bio, and a "Follow" button). Once generated, iteratively refine it to add a dark mode toggle using `useState` and ensure the layout stacks vertically on mobile devices using Tailwind breakpoints.
+
+## Summary
+
+- Start with a high-detail specification prompt to minimize rework.
+- Use iterative feedback loops for visual polishing rather than full rewrites.
+- Integrate React hooks by prompting for specific functional logic.
+- Always verify Tailwind classes and implement responsive, accessible HTML.
+
+## What's Next
+
+In the next chapter, we will explore AI-assisted Backend Development.

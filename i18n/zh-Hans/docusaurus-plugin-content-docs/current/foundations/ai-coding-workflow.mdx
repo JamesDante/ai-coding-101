@@ -1,0 +1,112 @@
+---
+sidebar_position: 3
+title: "AI 编程工作流"
+description: "学习从传统的手动编码循环转向以规划、验证和迭代优化为核心的 AI 增强型工作流。"
+---
+
+## 学习目标
+
+- 对比传统开发循环与 AI 辅助循环
+- 在功能实现中应用结构化的规划和 Prompt 方法
+- 实施严格的审查流程以验证 AI 生成的代码
+- 执行迭代优化周期，实现从初始草案到生产级代码的转变
+
+## 范式转移：从编写者到编辑
+
+在传统开发中，你大部分时间都花在编写语法上。你需要思考逻辑、敲入代码，然后进行测试。这就是“思考-编码-测试 (Think-Code-Test)”循环。
+
+使用 AI 时，你的角色从编写者转变为编辑或架构师。你不再关注每一个分号，而是专注于高层设计和验证。新的工作流遵循“规划-提示-验证 (Plan-Prompt-Verify)”模式。你会花更多时间定义意图，而减少编写具体实现的时间。
+
+## 第一阶段：有意识的规划
+
+在打开 AI 聊天窗口或 IDE 插件之前，你必须明确定义你想要实现的目标。模糊的请求会导致幻觉 (Hallucinations)——即 AI 生成错误或不存在的信息。一个优秀的 Prompt 应包含上下文、目标和技术约束。
+
+```markdown title="prompt_template.md"
+# 任务：实现日期工具函数
+
+## 上下文
+我们正在一个使用 `date-fns` 的 TypeScript 项目中工作。我们需要为仪表盘处理时区转换。
+
+## 目标
+创建一个名为 `formatToLocalTime` 的函数，它接收一个 UTC 字符串并返回格式化后的本地时间字符串。
+
+## 约束条件
+- 使用 `date-fns` 库。
+- 输入必须验证为有效的 ISO 字符串。
+- 输出格式应为 'MM/DD/YYYY, hh:mm A'。
+- 对于无效输入，通过返回 'Invalid Date' 来处理。
+```
+
+:::tip
+如果 AI 在处理复杂任务时遇到困难，可以尝试让它“一步步思考 (think step-by-step)”，或者在实现实际逻辑之前先编写伪代码。
+:::
+
+## 第二阶段：迭代实现
+
+避免陷入“大 Prompt (The Big Prompt)”陷阱。如果你要求 AI 一次性构建整个身份验证系统，它很可能会失败或触及上下文窗口限制。相反，应该使用“分块 (Chunking)”策略——将大型功能拆分为小且易于管理的部分。
+
+你应该通过提供反馈来对每个部分进行迭代。从核心逻辑开始，然后添加边缘情况 (edge cases)，最后添加错误处理。
+
+```typescript title="implementation_steps.ts"
+// 迭代 1：基本结构
+const formatDate = (date: string): string => {
+  return new Date(date).toLocaleDate
+
+// 迭代 2：添加特定的格式化要求
+// (在提示 AI 使用 date-fns 之后)
+import { format } from 'date-fns';
+
+const formatDate = (date: string): string => {
+  try {
+    return format(new Date(date), 'MM/dd/yyyy');
+  } catch (e) {
+    return 'Invalid Date';
+  }
+};
+```
+
+:::warning
+切勿在未通过本地测试套件运行且未进行人工逐行审查的情况下，直接将 AI 生成的代码合并到主分支。
+:::
+
+## 第三阶段：验证循环
+
+AI 工作流中最危险的部分是仅仅因为代码“看起来”正确就假设它能正常工作。你必须实施严格的验证循环。这包括检查逻辑错误、安全漏洞以及是否符合项目的风格指南。
+
+使用 linter 和单元测试等自动化工具来捕捉 AI 可能会忽略的常见错误。
+
+```javascript title="date_utils.test.js"
+const { formatDate } = require('./date_utils');
+
+describe('formatDate', () => {
+  test('正确格式化有效的 ISO 字符串', () => {
+    expect(formatDate('2023-10-27T10:00:00Z')).toBe('10/27/2023');
+  });
+
+  test('对于格式错误的字符串返回 "Invalid Date"', () => {
+    // 这可以捕捉到 AI 不处理 try/catch 块这一常见错误
+    expect(formatDate('not-a-date')).toBe('Invalid Date');
+  });
+});
+```
+
+## 第四阶段：审批与集成
+
+一旦代码通过所有测试，请进行最后的人工签核。在此阶段，你需要确保新代码符合现有架构且不会引入技术债。
+
+最后，将代码集成到主代码库中。不要忘记更新文档，并编写清晰的 commit message，说明添加了什么内容以及原因。
+
+## 练习
+
+从你的项目中找一个现有的简单函数，尝试使用“规划-提示-验证 (Plan-Prompt-Verify)”工作流对其进行重写。首先创建一个结构化的 Prompt，然后使用 AI 生成实现代码，最后编写单元测试来验证它。
+
+## 小结
+
+- 转变思维方式：从编写语法转向审查架构（从编写者到编辑）。
+- 使用“分块 (Chunking)”策略将复杂功能拆分为更小、更易管理的 Prompt。
+- 始终遵循包含上下文和约束条件的结构化 Prompt 模板。
+- 绝不要跳过验证循环；使用测试和 linter 来验证 AI 的输出。
+
+## 下一步
+
+在下一章中，我们将探索 Prompt Engineering。

@@ -1,0 +1,81 @@
+---
+sidebar_position: 2
+title: "LLM 如何理解代码"
+description: "了解 Tokenization 和 Context Window 如何影响 AI 代码生成，以及为什么这些机制会导致幻觉 (Hallucinations)。"
+---
+
+## 学习目标
+
+- 解释源代码中字符 (Characters) 与 Token 之间的区别。
+- 识别模型在处理大文件时 Context Window 的局限性。
+- 将概率性的 Token 预测与常见的代码幻觉 (Hallucinations) 联系起来。
+
+## Token：AI 的原子
+
+大语言模型 (LLM) 并不逐字符或逐行地阅读你的代码。相反，它们使用 "Token" 来处理文本。Token 是文本的一个片段，可以是一个字符、一个完整的单词，甚至是单词的一部分。
+
+像 `const` 或 `function` 这样的常用编程关键字通常是单个 Token，因为模型经常见到它们。然而，独特的变量名或复杂的字符串往往会被拆分为多个更小的 Token。
+
+```javascript title="example.js"
+const userAge = 25;
+
+// Tokenization 的可视化表示：
+// [const] [user] [Age] [=] [25] [;]
+```
+
+:::note
+不同的模型使用不同的 Tokenizer。例如，一段代码在 GPT-4 中可能是 50 个 Token，但在 Claude 中可能是 60 个 Token。
+:::
+
+## Context Window 的限制
+
+每个 LLM 都有一个 "Context Window"，它就像模型的短期记忆。这个窗口定义了模型在单次交互中可以处理的最大 Token 数量。
+
+当你处理大型代码库时，可能会触及这个限制。如果文件或对话超出了 Context Window，模型会开始“忘记” Prompt 的早期部分。这会导致截断 (Truncation)，使得模型失去对架构的感知，并忘记文件中之前定义的重要定义、导入或逻辑。
+
+## 概率性预测 vs. 逻辑执行
+
+很容易将 LLM 误认为是编译器，但它们的运行原理根本不同。编译器执行确定性的解析 (Deterministic Parsing)；它遵循严格的逻辑规则来验证代码是否有效。
+
+LLM 使用概率性预测。它不会在沙盒中“运行”你的代码来查看是否工作。相反，它根据训练期间学习到的模式，计算下一个最可能出现的 Token 是什么。模型预测的是“看起来像”正确的代码，而不是验证底层的逻辑。
+
+```python title="logic_error.py"
+def calculate_total(price, tax):
+    # 这在语法上看起来非常完美，并且遵循一种常见模式。
+    # 然而，LLM 可能会预测为“减号”，因为它符合
+    # 某些训练模式，尽管逻辑上需要加法。
+    return price - tax
+```
+
+## 幻觉的根源
+
+当模型完成模式的驱动力超过了事实准确性时，就会发生幻觉 (Hallucinations)。由于模型仅仅是在预测下一个最可能的 Token，它经常会发明听起来很合理的 API 方法或库函数。
+
+这是通过混合不同库的模式实现的。如果一个库使用 `fetchData` 而另一个使用 `get_data`，模型可能会幻觉出一个像 `fetch_data` 这样的混合方法，而这个方法在任何库中都不实际存在。
+
+```typescript title="hallucination.ts"
+import { apiClient } from 'cloud-lib';
+
+// 模型预测这看起来像是一个标准模式，
+// 但 'fetchWithAuthRetry' 是一个幻觉方法。
+const data = await apiClient.fetchWithAuthRetry('/user/profile');
+```
+
+:::warning
+由于 LLM 预测的是模式而非验证逻辑，你必须始终将 AI 生成的代码视为需要编译和测试的“草稿”。
+:::
+
+## 练习
+
+打开你最喜欢的代码编辑器，编写一个很长的、毫无意义的变量名（例如：`const superLongVariableThatHasNoMeaningAtAll = 10;`）。将其粘贴到 LLM 中并要求它“列出这一行中的 Token”。观察模型如何将你独特的字符串拆分为更小的、可识别的片段。
+
+## 小结
+
+- Token 是 LLM 处理文本的基本单位，通常将字符组合成有意义的片段。
+- Context Window 限制了模型一次可以“记住”多少代码。
+- LLM 基于概率预测下一个最可能的 Token，而不是执行逻辑代码。
+- 当模型创建出看似合理但并不存在的代码模式或 API 时，就会产生幻觉。
+
+## 下一步
+
+既然你已经了解了模型如何处理文本，请在 Prompt Engineering 中学习如何控制这种行为。

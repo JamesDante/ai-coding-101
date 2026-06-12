@@ -1,0 +1,192 @@
+---
+sidebar_position: 4
+title: "Enterprise AI Development"
+description: "Learn to implement cost controls, security auditing, and private deployment strategies for AI tools in a corporate environment."
+---
+
+## Learning Objectives
+
+*   Implement token-tracking and caching strategies to optimize LLM operational costs.
+*   Configure PII (Personally Identifiable Information) scrubbing pipelines to prevent sensitive data leakage.
+*   Deploy a private LLM instance using containerized infrastructure.
+*   Audit AI workflows for common enterprise security vulnerabilities like prompt injection.
+
+## Cost Optimization & Token Management
+
+In an enterprise environment, uncontrolled LLM usage can lead to massive unexpected expenses. To manage this, you should implement two primary strategies: **Model Routing** and **Semantic Caching**.
+
+Model routing involves analyzing the complexity of a request before sending it to an LLM. Simple tasks like classification or summarization can be routed to smaller, cheaper models (SLMs), while complex reasoning tasks are sent to flagship models. Semantic caching uses a vector database to store previous prompt-response pairs. If a new prompt is semantically similar to a cached one, the system returns the cached response instead of making an expensive API call.
+
+```python title="cache_manager.py"
+import hashlib
+
+class TokenManager:
+    def __init__(self, budget_limit: int):
+        self.budget_limit = budget_limit
+        self.current_usage = 0
+        self.semantic_cache = {}  # In production, use a Vector DB like Redis or Milvus
+
+    def check_budget(self, estimated_tokens: int) -> bool:
+        if self.current_usage + estimated_tokens > self.budget_limit:
+            return False
+        return True
+
+    def get_cached_response(self, prompt_embedding: list) -> str:
+        # Simplified: In reality, perform a vector similarity search
+        prompt_hash = hashlibable_embedding(prompt_embedding)
+        return self.semantic_cache.get(prompt_hash, None)
+
+    def record_usage(self, tokens: int):
+        self.current_usage += tokens
+
+def hashlibable_embedding(embedding: list) -> str:
+    return hashlib.sha256(str(embedding).encode()).hexdigest()
+```
+
+:::tip
+Start with 'Small Language Models' (SLMs) for routine classification tasks to reduce costs by up to 90% compared to flagship models.
+:::
+
+## Security Auditing and Data Privacy
+
+Enterprise AI applications must adhere to strict data privacy regulations (like GDPR or HIPAA). The most critical risk is the accidental leakage of PII into the LLM's training logs or third-party API providers.
+
+To mitigate this, implement a **PII Scrubbing Layer**. This middleware sits between your application logic and the LLM provider, intercepting all outgoing prompts to redact sensitive information such as emails, credit card numbers, or social security numbers using pattern matching or specialized NLP models.
+
+```python title="security_middleware.py"
+import re
+
+class PIIScrubber:
+    def __init__(self):
+        # Simplified regex patterns for demonstration
+        self.patterns = {
+            "email": r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
+            "credit_card": r'\b(?:\d[ -]*?){13,16}\b'
+        }
+
+    def scrub(self, text: str) -> str:
+        scrubbed_text = text
+        for label, pattern in self.patterns.items():
+            scrubbed_text = re.sub(pattern, f"[REDACTED_{label.upper()}]", scrubbed_text)
+        return scrubbed_text
+
+# Usage example
+scrubber = PIIScrubber()
+user_input = "Contact me at john.doe@example.com with my card 4111-1111-1111-1111"
+safe_prompt = scrubber.scrub(user_input)
+print(f"Safe Prompt: {safe_prompt}")
+```
+
+:::warning
+Never rely solely on system prompts to prevent data leakage; always implement a programmatic scrubbing layer that operates outside the LLM's control.
+:::
+
+## Private Deployment Architectures
+
+When dealing with highly sensitive data or strict regulatory requirements, managed services like Azure OpenAI might not be sufficient. In these cases, you must deploy private LLM instances within your own controlled infrastructure (VPC).
+
+There are two main approaches:
+1.  **Managed Private Endpoints:** Using cloud-native services that provide private connectivity via VPC endpoints, ensuring traffic never traverses the public internet.
+2.  **Self-Hosted Inference:** Running models using engines like **vLLM** or **Ollama** on your own Kubernetes clusters. This provides maximum control but requires managing GPU resources and scaling.
+
+```yaml title="vllm-deployment.yaml"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-inference-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      containers:
+      - name: vllm-container
+        image: vllm/vllm-openai:latest
+        args: ["--model", "meta-llama/Llama-3-8B-Instruct"]
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        ports:
+        - containerPort: 8000
+```
+
+## Walkthrough: Enterprise AI Gateway Flow
+
+The "Enterprise AI Gateway" pattern centralizes all security, cost, and routing logic into a single entry point. This ensures that no request reaches the LLM without being audited.
+
+```text title="End-to-End: Enterprise AI Gateway Flow"
+User:   "Please summarize my medical report for patient Jane Doe (ID: 9982)."
+
+Step 1 → Security Layer: The PII Scrubber identifies 'Jane Doe' and '9982' as sensitive.
+        Action: Redacts input to "Please summarize my medical report for patient [REDACTED] (ID: [REDACTED])."
+
+Step 2 → Cache Check: The system generates an embedding for the redacted prompt.
+        Result: No match found in the Semantic Cache.
+
+Step 3 → Cost & Routing: The Gateway checks the token budget and analyzes complexity.
+        Action: Task is 'Summarization' (Low complexity). Routes to Llama-3-8B instead of GPT-4o.
+
+Step 4 → LLM Execution: The small model processes the sanitized prompt.
+        Result: "The medical report indicates..."
+
+Final:  The user receives a summary, and the system logs the usage for billing.
+```
+
+```python title="gateway_logic.py"
+class AIGateway:
+    def __init__(self, scrubber, token_manager):
+        self.scrubber = scrubber
+        self.token_manager = token_manager
+
+    def process_request(self, user_prompt: str):
+        # 1. Security Scrubbing
+        safe_prompt = self.scrubber.scrub(user_prompt)
+        
+        # 2. Cost Check (Simulated token count)
+        estimated_tokens = len(safe_prompt.split()) * 1.3
+        if not self.token_manager.check_budget(int(estimated_tokens)):
+            return "Error: Budget exceeded."
+
+        # 3. Routing Logic (Simplified)
+        model_to_use = "gpt-4o" if "complex reasoning" in safe_prompt.lower() else "llama-3-8b"
+        
+        # 4. Final Execution (Mocking API call)
+        self.token_manager.record_usage(int(estimated_tokens))
+        return f"Processed via {model_to_use}: [Response to '{safe_prompt}']"
+
+# Implementation
+from security_middleware import PIIScrubber
+from cache_manager import TokenManager
+
+gateway = AIGateway(PIIScrubber(), TokenManager(budget_limit=1000))
+print(gateway.process_request("My email is test@test.com and I need complex reasoning."))
+```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+| :--- | :--- | :--- |
+| High Latency Spikes | Overly complex regex or heavy NLP models in the scrubbing layer. | Optimize regex patterns or use lightweight, specialized NER models. |
+| Cache Poisoning | Malicious users injecting specific responses into the semantic cache. | Implement strict validation and sanitization for all cached entries. |
+| OOM (Out of Memory) Errors | Model weights exceed available GPU VRAM in private deployments. | Use quantization techniques (e.g., AWQ or GPTQ) to reduce model size. |
+| Data Leakage | Sensitive data bypassed the scrubbing layer due to encoding issues. | Implement multi-stage auditing and egress monitoring on all outbound traffic. |
+
+## Exercise
+
+Create a Python script that implements a "Budget Guardrail." The script should take a list of simulated API responses (each with a `token_count` property) and stop processing as soon as the cumulative token count exceeds a predefined limit of 500 tokens. Print the number of successful requests processed before the limit was hit.
+
+## Summary
+
+*   Use **Semantic Caching** and **Model Routing** to control LLM operational costs.
+*   Implement a programmatic **PII Scrubbing Layer** to prevent sensitive data leakage.
+*   Deploy **Private Inference Servers** (like vLLM) for high-security, air-gapped requirements.
+*   Centralize all logic in an **AI Gateway** to ensure consistent security and cost auditing.
+
+## What's Next
+
+In the final chapter, you will apply everything from this course to build your own AI coding agent — a simplified version of a production tool like Claude Code, complete with planning, memory, tool calling, and self-review.

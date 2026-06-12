@@ -1,0 +1,118 @@
+---
+sidebar_position: 2
+title: "Context Engineering"
+description: "Master the art of structuring and compressing project knowledge to maximize AI situational awareness and reduce hallucinations."
+---
+
+## Learning Objectives
+- Create a high-density project context file for LLM consumption
+- Implement XML tagging to structure complex project data
+- Apply compression techniques to fit large codebases into the context window
+- Establish a workflow for maintaining an evolving project memory system
+
+## The Context Bottleneck
+When working with Large Language Models (LLMs), it is tempting to simply dump every file from your repository into the prompt. This approach, known as "raw context," often backfires.
+
+Engineered context focuses on providing high-signal information while stripping away noise. When you provide too much irrelevant data, you trigger the "lost in the middle" phenomenon, where the model loses track of instructions buried in a sea of text. This leads to hallucinations and degraded performance.
+
+:::warning
+Avoid 'Context Stuffing.' Adding every file in your project doesn't make the AI smarter; it often increases noise and leads to the AI ignoring specific instructions.
+:::
+
+## Building a Project Knowledge Base
+Instead of relying on the LLM to "figure out" your project, create a dedicated memory file like `PROJECT_CONTEXT.md`. This file acts as a single source of truth for the AI's situational awareness.
+
+Your context file should include:
+- **Tech Stack**: Languages, frameworks, and critical libraries.
+- **Architecture**: Core patterns (e.g., MVC, Microservices) and data flow.
+- **Naming Conventions**: How to name variables, files, and components.
+- **Business Logic Constraints**: Critical rules that must never be broken.
+
+```markdown title="PROJECT_CONTEXT.md"
+# Project Context: [Project Name]
+
+## Tech Stack
+- TypeScript, React, Node.js
+- Tailwind CSS for styling
+
+## Architecture
+- Uses a Repository pattern for data access.
+- State management via Zustand.
+
+## Rules & Conventions
+- Use functional components only.
+- Always include JSDoc comments for exported functions.
+```
+
+## Structuring with XML Tags
+LLMs are highly proficient at parsing structured data. Using XML-style tags (e.g., `<architecture>`, `<constraints>`) helps the model distinguish between different types of instructions and project metadata.
+
+Structured delimiters provide clear boundaries, making it much easier for the AI to navigate complex prompts compared to plain text blocks.
+
+```markdown title="prompt_with_tags.md"
+I need you to implement a new feature in our application.
+
+<project_goals>
+Implement a user authentication flow using JWT.
+</project_goals>
+
+<technical_constraints>
+- Use the existing `authService` module.
+- Ensure all routes are protected by the `requireAuth` middleware.
+- Do not modify the database schema.
+</technical_constraints>
+```
+
+## Context Compression Techniques
+As your project grows, you will inevitably hit the limits of the context window. To manage this, use "skeletonizing"—a technique where you provide the structure of your code without the implementation details.
+
+By providing function signatures and docstrings but removing the logic inside the bodies, you drastically reduce token usage while maintaining the AI's understanding of how components interact.
+
+```typescript title="compression_example.ts"
+// --- FULL SOURCE FILE (High Token Usage) ---
+export const calculateTotal = (items: Item[]): number => {
+  return items.reduce((acc, item) => {
+    const tax = item.price * 0.15;
+    const total = item.price + tax;
+    return acc + total;
+  }, 0);
+};
+
+// --- SKELETON VERSION (Low Token Usage) ---
+/**
+ * Calculates the total price including tax for an array of items.
+ */
+export const calculateTotal = (items: Item[]): number => {
+  // implementation omitted
+};
+```
+
+:::tip
+Use tools like 'repomix' or custom scripts to automatically generate directory structures and skeleton files for your context engineering workflow.
+:::
+
+## The Iterative Memory Loop
+Context engineering is not a one-time task; it is an iterative process. As you implement features, your project's architecture and rules change. You must update your `PROJECT_CONTEXT.md` to prevent the AI from suggesting outdated patterns.
+
+A great way to maintain this is to ask the AI to help you. After completing a significant task, prompt the LLM to suggest updates to your context file.
+
+```markdown title="update_context_prompt.md"
+I have just finished implementing the Stripe integration. 
+
+Based on our recent conversation and the changes made to the codebase, 
+please suggest any necessary updates to our `PROJECT_CONTEXT.md` file 
+to reflect these new architectural patterns or dependencies.
+```
+
+## Exercise
+Create a `SKELETON_CONTEXT.md` file for a small hypothetical project (e.g., a Todo App). Include a tech stack, one architectural rule, and use an XML tag to define a specific coding constraint.
+
+## Summary
+- Use engineered context instead of raw file dumps to avoid the "lost in the middle" effect.
+- Maintain a `PROJECT_CONTEXT.md` as a single source of truth for project knowledge.
+- Leverage XML tags to provide clear structure and boundaries within prompts.
+- Implement skeletonizing to compress large files into the context window.
+- Treat context maintenance as an iterative loop by updating your memory files regularly.
+
+## What's Next
+In the next chapter, we'll explore Long Task Decomposition and how to break complex goals into reliable prompt sequences.

@@ -1,0 +1,259 @@
+---
+sidebar_position: 3
+title: "Coding Agent Architecture"
+description: "Learn how to design and implement the internal loop of a coding agent, focusing on planning, memory management, and tool execution."
+---
+
+## Learning Objectives
+
+- Implement an autonomous agent loop based on the ReAct pattern.
+- Design a planner that decomposes complex coding tasks into executable sub-goals.
+- Manage agent state using short-term context and long-term memory.
+- Build a secure tool executor to interface between the LLM and the filesystem.
+
+## The Agentic Loop: The ReAct Pattern
+
+The core of an autonomous agent is the "Reasoning and Acting" (ReAct) pattern. Unlike a standard chatbot that simply generates a single response, a ReAct agent operates in a continuous loop: it thinks about the problem, decides on an action, executes that action via a tool, and then observes the result to inform its next thought.
+
+This cycle is critical because it allows the LLM to ground its reasoning in real-world data. If the LLM attempts to read a file that doesn't exist, the error message from the system becomes part of its new context, preventing it from hallucinating the file's contents.
+
+```
+── REACT AGENT LOOP ──────────────────────────────────────────────────
+  User Task
+       ↓
+  ┌──── LLM ───────────────────────────────────────────────────────┐
+  │  Input:  [task, previous thoughts, observations]               │
+  │  Output: Thought ("I need to read main.py first")              │
+  │          Action  (tool_name="read_file", args={"path": "..."}) │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ structured action
+  ┌──── Tool Executor ─────────────────────────────────────────────┐
+  │  Dispatches to: read_file / write_file / run_shell / finish    │
+  │  Runs in sandboxed project directory                           │
+  │  Returns: file contents, command output, or error message      │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ observation appended to context
+  ──── loop until action == "finish" or max_iterations reached ────
+       ↓
+  Final Output
+```
+
+```python title="react_loop.py"
+def run_agent_loop(user_prompt, max_iterations=10):
+    # Initialize the conversation with the user's request
+    agent_context = f"User Request: {user_prompt}"
+    
+    for i in range(max_iterations):
+        # Step 1: Think & Act (The LLM generates a thought and a tool call)
+        response = llm.generate(agent_context)
+        thought, action = parse_llm_output(response)
+        
+        print(f"Iteration {i}: {thought}")
+        
+        if action["type"] == "finish":
+            return action["content"]
+
+        # Step 2: Observe (Execute the tool and capture the output)
+        observation = tool_executor.execute(action["tool"], action["args"])
+        
+        # Step 3: Update Context (Feed the observation back into the loop)
+        agent_context += f"\nThought: {thought}\nAction: {action}\nObservation: {observation}"
+
+    return "Agent reached maximum iterations without finishing."
+```
+
+:::warning
+Beware of "infinite loops" where an agent repeatedly attempts the same failing action. Always implement a maximum iteration limit (e.g., 10-20 steps) to prevent runaway API costs.
+:::
+
+## The Planner: Task Decomposition
+
+Complex coding tasks, such as "Add authentication to this API," are too large for an LLM to solve in a single step. A robust architecture uses a **Planner** to decompose high-level goals into a sequence of atomic, executable sub-tasks.
+
+The planner should output a structured format, such as JSON, which can be parsed by the system. Furthermore, the agent must be capable of dynamic re-planning; if a tool execution reveals that a planned step is no longer necessary or requires an extra intermediate step, the agent must update its task list.
+
+```python title="planner.py"
+import json
+
+PLANNER_PROMPT = """
+You are a technical planner. Break down the user request into a JSON list of sub-tasks.
+Each task must be atomic and executable via tools.
+
+User Request: {request}
+
+Return format:
+{
+  "plan": [
+    {"id": 1, "description": "Read the main.py file"},
+    {"id": 2, "description": "Modify the login function"}
+  ]
+}
+"""
+
+def get_plan(user_request):
+    raw_response = llm.generate(PLANNER_PROMPT.format(request=user_request))
+    # Parse the structured JSON from the LLM response
+    plan_data = json.loads(extract_json_from_text(raw_response))
+    return plan_data["plan"]
+```
+
+## Memory Systems: Context vs. State
+
+An agent requires two distinct types of memory to function effectively in a large codebase:
+
+1.  **Short-term Memory (Context Window):** This is the immediate conversation history, including recent thoughts, actions, and observations. As this grows, it risks hitting the LLM's token limit.
+2.  **Long-term State (Project Context):** This includes persistent information about the codebase, such as a file tree, class definitions, or a summary of previous sessions stored in a database or local file.
+
+To manage the context window, implement a "sliding window" or a summarization strategy where older observations are compressed into a brief summary to save tokens.
+
+```python title="memory_manager.py"
+class MemoryManager:
+    def __init__(self, max_context_tokens=2000):
+        self.history = []
+        self.summary = ""
+        self.max_tokens = max_context_tokens
+
+    def add_observation(self, observation):
+        self.history.append(observation)
+        self._check_and_summarize()
+
+    def _check_and_summarize(self):
+        current_usage = self._estimate_tokens(self.history)
+        if current_usage > self.max_tokens:
+            # Move oldest history into the summary to free up space
+            old_content = self.history.pop(0)
+            self.summary += f"\nPrevious context: {old_content}"
+            print("Context truncated and summarized.")
+
+    def _estimate_tokens(self, items):
+        return sum(len(i) for i in items) # Simplified for example
+```
+
+## The Tool Executor: Bridging LLM to OS
+
+The Tool Executor is the interface between the LLM's reasoning and your operating system. It maps string-based function calls generated by the LLM to actual Python functions that interact with the filesystem or shell.
+
+Security is paramount here. Never allow an agent to run arbitrary shell commands without a sandbox (like Docker) or strict permission controls. At a minimum, restrict file operations to a specific project directory.
+
+```python title="executor.py"
+import os
+
+class ToolRegistry:
+    def write_file(self, path, content):
+        with open(path, 'w') as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+
+    def read_file(self, path):
+        try:
+            with open(path, 'r') as f:
+                return f.read()
+        except Exception as e:
+            return str(e)
+
+class ToolExecutor:
+    def __init__(self):
+        self.registry = ToolRegistry()
+
+    def execute(self, tool_name, args):
+        method = getattr(self.registry, tool_name, None)
+        if method and callable(method):
+            return method(**args)
+        return f"Error: Tool {tool_name} not found."
+```
+
+:::tip
+Use structured output formats like JSON or XML for tool calls; this makes parsing significantly more reliable than relying on regex for natural language responses.
+:::
+
+## End-to-End Example: Autonomous Bug Fix Walkthrough
+
+The following walkthrough demonstrates an agent identifying and fixing a typo in a Python file.
+
+```text title="End-to-End: Autonomous Bug Fix"
+User: "Fix the typo in greeting.py"
+
+Step 1 [Planner]: Generates plan -> [{"id": 1, "task": "Read greeting.py"}, {"id": 2, "task": "Fix typo"}]
+
+Step 2 [Agent Loop - Action]: Call tool `read_file(path="greeting.py")`
+Step 3 [Agent Loop - Observation]: Returns "print('Helo World')"
+
+Step 4 [Agent Loop - Thought]: "I found a typo: 'Helo' should be 'Hello'. I will now overwrite the file."
+Step 5 [Agent Loop - Action]: Call tool `write_file(path="greeting.py", content="print('Hello World')")`
+Step 6 [Agent Loop - Observation]: Returns "Successfully wrote to greeting.py"
+
+Step 7 [Agent Loop - Thought]: "The typo is fixed. I am done."
+Step 8 [Agent Loop - Action]: Call tool `finish(content="Bug fixed successfully.")`
+
+Final Output: "Bug fixed successfully."
+```
+
+Below is a minimal, integrated implementation of the architecture described above.
+
+```python title="complete_agent.py"
+class SimpleAgent:
+    def __init__(self, tools):
+        self.tools = tools
+        self.context = []
+
+    def run(self, task):
+        self.context.append(f"Task: {task}")
+        
+        for _ in range(5):
+            # In a real app, this would be an LLM call
+            # Here we simulate the LLM deciding to read then write
+            if "Read" in self.context[-1] or "Task" in self.context[-1]:
+                thought = "I need to see the file content first."
+                action = {"tool": "read_file", "args": {"path": "greeting.py"}}
+            elif "Helo" in self.context[-1]:
+                thought = "Found typo. Fixing it now."
+                action = {"tool": "write_file", "args": {"path": "greeting.py", "content": "print('Hello World')"}}
+            else:
+                thought = "Task complete."
+                action = {"tool": "finish", "args": {"content": "Done!"}}
+
+            print(f"Agent Thought: {thought}")
+            
+            # Execute tool
+            result = self.tools.execute(action["tool"], action["args"])
+            self.context.append(f"Action: {action}\nObservation: {result}")
+            
+            if action["tool"] == "finish":
+                print(f"Final Result: {action['args']['content']}")
+                break
+
+# Mocking the environment
+class MockTools:
+    def execute(self, name, args):
+        if name == "read_file": return "print('Helo World')"
+        if name == "write_file": return "Success"
+        return "Done"
+
+agent = SimpleAgent(MockTools())
+agent.run("Fix the typo in greeting.py")
+```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Agent hits `max_iterations` without finishing | Tool returns an error and agent retries the identical call | Track failed attempts per tool; after 2 consecutive failures with the same args, escalate or return an error to the user |
+| LLM generates a tool call with wrong argument names | Tool schema not provided in the system prompt | Include each tool's name, description, and parameter names in the system prompt before the agent loop starts |
+| Agent hallucinates file contents instead of reading them | The `read_file` observation was not appended to `agent_context` | Always append the full `Observation` to context before the next LLM call |
+| Agent writes to paths outside the project directory | `ToolExecutor` doesn't validate paths | Before any write, assert the resolved path starts with the project root; return an error string if it doesn't |
+| Context window fills up mid-task | Raw file contents (large observations) accumulate verbatim in context | Summarize observations over a size threshold using `MemoryManager` before appending |
+
+## Exercise
+
+Create a new tool called `list_dir` for the `ToolRegistry` class. This tool should take a `path` argument and return a string containing the names of all files in that directory using `os.listdir()`. Then, update the `SimpleAgent` loop to use this tool to find a file before reading it.
+
+## Summary
+
+- The **ReAct pattern** enables agents to ground their reasoning in real-world observations through a continuous loop.
+- **Task Decomposition** via a Planner prevents LLM failure on complex, multi-step coding requirements.
+- **Memory Management** requires balancing recent conversation history (short-term) with persistent project state (long-term).
+- **Tool Executors** act as the critical bridge between high-level reasoning and low-level system operations.
+
+## What's Next
+
+In the next chapter, we'll explore Enterprise AI Development — cost, security, auditing, and private deployment at scale.

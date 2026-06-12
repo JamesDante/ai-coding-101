@@ -1,0 +1,259 @@
+---
+sidebar_position: 3
+title: "编程智能体架构"
+description: "学习如何设计和实现编程智能体的内部循环，重点关注规划、内存管理和工具执行。"
+---
+
+## 学习目标
+
+- 基于 ReAct 模式实现自主智能体循环。
+- 设计一个能够将复杂的编程任务分解为可执行子目标的规划器 (Planner)。
+- 使用短期上下文和长期记忆来管理智能体状态。
+- 构建一个安全的工具执行器，作为 LLM 与文件系统之间的接口。
+
+## 智能体循环：ReAct 模式
+
+自主智能体的核心是“推理与行动”（Reasoning and Acting, ReAct）模式。与仅仅生成单一响应的标准聊天机器人不同，ReAct 智能体在一个持续的循环中运行：它思考问题、决定行动、通过工具执行该行动，然后观察结果以启发其下一步思考。
+
+这个循环至关重要，因为它允许 LLM 将其推理建立在现实世界的数据之上。如果 LLM 尝试读取一个不存在的文件，来自系统的错误消息将成为其新上下文的一部分，从而防止它幻觉出文件的内容。
+
+```
+── REACT 智能体循环 ───────────────────────────────────────────────────
+  用户任务
+       ↓
+  ┌──── LLM ───────────────────────────────────────────────────────┐
+  │  输入：[任务、历史想法、观察结果]                               │
+  │  输出：想法（"我需要先读取 main.py"）                          │
+  │        行动（tool_name="read_file", args={"path": "..."}）     │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ 结构化行动
+  ┌──── 工具执行器 ─────────────────────────────────────────────────┐
+  │  分发到：read_file / write_file / run_shell / finish           │
+  │  在沙箱化的项目目录内运行                                      │
+  │  返回：文件内容、命令输出或错误信息                             │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ 观察结果追加到上下文
+  ──── 循环直至 action == "finish" 或达到最大迭代次数 ─────────────
+       ↓
+  最终输出
+```
+
+```python title="react_loop.py"
+def run_agent_loop(user_prompt, max_iterations=10):
+    # 使用用户的请求初始化对话
+    agent_context = f"用户请求：{user_prompt}"
+    
+    for i in range(max_iterations):
+        # 第 1 步：思考与行动（LLM 生成想法和工具调用）
+        response = llm.generate(agent_context)
+        thought, action = parse_llm_output(response)
+        
+        print(f"迭代 {i}: {thought}")
+        
+        if action["type"] == "finish":
+            return action["content"]
+
+        # 第 2 步：观察（执行工具并捕获输出）
+        observation = tool_executor.execute(action["tool"], action["args"])
+        
+        # 第 3 步：更新上下文（将观察结果反馈回循环）
+        agent_context += f"\n想法：{thought}\n行动：{action}\n观察：{observation}"
+
+    return "智能体达到最大迭代次数，未能完成任务。"
+```
+
+:::warning
+警惕“无限循环”——即智能体反复尝试相同的失败操作。务必实现最大迭代限制（例如 10-20 步），以防止 API 成本失控。
+:::
+
+## 规划器：任务分解
+
+复杂的编程任务，例如“为此 API 添加身份验证”，对于 LLM 来说太庞大了，无法在单个步骤中解决。一个健壮的架构会使用**规划器 (Planner)** 将高层目标分解为一系列原子化的、可执行的子任务。
+
+规划器应该输出一种结构化格式（例如 JSON），以便系统进行解析。此外，智能体必须具备动态重新规划的能力；如果工具执行的结果表明某个计划步骤不再必要或需要额外的中间步骤，智能体必须更新其任务列表。
+
+```python title="planner.py"
+import json
+
+PLANNER_PROMPT = """
+你是一个技术规划器。将用户请求分解为 JSON 格式的子任务列表。
+每个任务必须是原子化的，并且可以通过工具执行。
+
+用户请求：{request}
+
+返回格式：
+{
+  "plan": [
+    {"id": 1, "description": "读取 main.py 文件"},
+    {"id": 2, "description": "修改登录函数"}
+  ]
+}
+"""
+
+def get_plan(user_request):
+    raw_response = llm.generate(PLANNER_PROMPT.format(request=user_request))
+    # 从 LLM 响应中解析结构化 JSON
+    plan_data = json.loads(extract_json_from_text(raw_response))
+    return plan_data["plan"]
+```
+
+## 记忆系统：上下文 vs. 状态
+
+智能体需要两种不同类型的记忆才能在大型代码库中有效运行：
+
+1.  **短期记忆（上下文窗口）：** 这是即时的对话历史，包括最近的想法、行动和观察结果。随着其增长，存在触及 LLM token 限制的风险。
+2.  **长期状态（项目上下文）：** 这包括关于代码库的持久化信息，例如文件树、类定义，或者存储在数据库或本地文件中的先前会话摘要。
+
+为了管理上下文窗口，可以实现“滑动窗口”或摘要策略，将较旧的观察结果压缩成简短的摘要以节省 token。
+
+```python title="memory_manager.py"
+class MemoryManager:
+    def __init__(self, max_context_tokens=2000):
+        self.history = []
+        self.summary = ""
+        self.max_tokens = max_context_tokens
+
+    def add_observation(self, observation):
+        self.history.append(observation)
+        self._check_and_summarize()
+
+    def _check_and_summarize(self):
+        current_usage = self._estimate_tokens(self.history)
+        if current_usage > self.max_tokens:
+            # 将最旧的历史记录移入摘要以释放空间
+            old_content = self.history.pop(0)
+            self.summary += f"\n之前的上下文：{old_content}"
+            print("上下文已截断并进行摘要。")
+
+    def _estimate_tokens(self, items):
+        return sum(len(i) for i in items) # 示例简化版
+```
+
+## 工具执行器：连接 LLM 与操作系统
+
+工具执行器是 LLM 推理与你的操作系统之间的接口。它将 LLM 生成的基于字符串的函数调用映射到实际的 Python 函数，这些函数可以与文件系统或 shell 进行交互。
+
+安全性在这里至关重要。绝不要允许智能体在没有沙箱（如 Docker）或严格权限控制的情况下运行任意 shell 命令。至少应将文件操作限制在特定的项目目录内。
+
+```python title="executor.py"
+import os
+
+class ToolRegistry:
+    def write_file(self, path, content):
+        with open(path, 'w') as f:
+            f.write(content)
+        return f"成功写入到 {path}"
+
+    def read_file(self, path):
+        try:
+            with open(path, 'r') as f:
+                return f.read()
+        except Exception as e:
+            return str(e)
+
+class ToolExecutor:
+    def __init__(self):
+        self.registry = ToolRegistry()
+
+    def execute(self, tool_name, args):
+        method = getattr(self.registry, tool_name, None)
+        if method and callable(method):
+            return method(**args)
+        return f"错误：未找到工具 {tool_name}。"
+```
+
+:::tip
+在进行工具调用时，使用 JSON 或 XML 等结构化输出格式；这比依赖正则表达式解析自然语言响应要可靠得多。
+:::
+
+## 端到端示例：自主修复 Bug 流程演示
+
+以下流程演示了智能体如何识别并修复 Python 文件中的拼写错误。
+
+```text title="端到端：自主修复 Bug"
+用户：“修复 greeting.py 中的拼写错误”
+
+步骤 1 [规划器]：生成计划 -> [{"id": 1, "task": "读取 greeting.py"}, {"id": 2, "task": "修复拼写错误"}]
+
+步骤 2 [智能体循环 - 行动]：调用工具 `read_file(path="greeting.py")`
+步骤 3 [智能体循环 - 观察]：返回 "print('Helo World')"
+
+步骤 4 [智能体循环 - 想法]："我发现了一个拼写错误：'Helo' 应该是 'Hello'。我现在将重写该文件。"
+步骤 5 [智能体循环 - 行动]：调用工具 `write_file(path="greeting.py", content="print('Hello World')")`
+步骤 6 [智能体循环 - 观察]：返回 "成功写入到 greeting.py"
+
+步骤 7 [智能体循环 - 想法]："拼写错误已修复。任务完成。"
+步骤 8 [智能体循环 - 行动]：调用工具 `finish(content="Bug 已成功修复。")`
+
+最终输出："Bug 已成功修复。"
+```
+
+下面是上述架构的一个极简集成实现。
+
+```python title="complete_agent.py"
+class SimpleAgent:
+    def __init__(self, tools):
+        self.tools = tools
+        self.context = []
+
+    def run(self, task):
+        self.context.append(f"任务：{task}")
+        
+        for _ in range(5):
+            # 在实际应用中，这将是一个 LLM 调用
+            # 这里我们模拟 LLM 决定先读取再写入
+            if "读取" in self.context[-1] or "任务" in self.context[-1]:
+                thought = "我需要先查看文件内容。"
+                action = {"tool": "read_file", "args": {"path": "greeting.py"}}
+            elif "Helo" in self.context[-1]:
+                thought = "发现拼写错误。正在修复。"
+                action = {"tool": "write_file", "args": {"path": "greeting.py", "content": "print('Hello World')"}}
+            else:
+                thought = "任务完成。"
+                action = {"tool": "finish", "args": {"content": "完成！"}}
+
+            print(f"智能体想法：{thought}")
+            
+            # 执行工具
+            result = self.tools.execute(action["tool"], action["args"])
+            self.context.append(f"行动：{action}\n观察：{result}")
+            
+            if action["tool"] == "finish":
+                print(f"最终结果：{action['args']['content']}")
+                break
+
+# 模拟环境
+class MockTools:
+    def execute(self, name, args):
+        if name == "read_file": return "print('Helo World')"
+        if name: return "成功" # 简化逻辑
+        return "完成"
+
+agent = SimpleAgent(MockTools())
+agent.run("修复 greeting.py 中的拼写错误")
+```
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| 智能体达到 `max_iterations` 仍未完成 | 工具返回错误，但智能体用完全相同的参数重试 | 跟踪每个工具的连续失败次数；同一参数失败 2 次后，升级处理或向用户返回错误 |
+| LLM 生成的工具调用参数名错误 | 系统 prompt 中未提供工具的 schema | 在智能体循环开始前，在系统 prompt 中列出每个工具的名称、描述和参数名 |
+| 智能体幻觉文件内容而非真实读取 | `read_file` 的观察结果未被追加到 `agent_context` | 每次 LLM 调用前，务必将完整的观察结果追加到上下文中 |
+| 智能体向项目目录外的路径写入文件（安全问题） | `ToolExecutor` 未校验路径 | 任何写操作前，断言解析后的路径以项目根目录开头；否则返回错误字符串 |
+| 长任务中途耗尽上下文窗口 | 大型文件内容（大量观察结果）被逐字追加到上下文 | 对超过大小阈值的观察结果，通过 `MemoryManager` 摘要后再追加 |
+
+## 练习
+
+为 `ToolRegistry` 类创建一个名为 `list_dir` 的新工具。该工具应接受一个 `path` 参数，并使用 `os.listdir()` 返回包含该目录下所有文件名称的字符串。然后，更新 `SimpleAgent` 循环，在读取文件之前先使用此工具查找文件。
+
+## 小结
+
+- **ReAct 模式**通过持续循环，使智能体能够基于现实世界的观察来进行推理。
+- 通过规划器进行**任务分解**，可以防止 LLM 在处理复杂的、多步骤的编程需求时失败。
+- **内存管理**需要在近期对话历史（短期）与持久化项目状态（长期）之间取得平衡。
+- **工具执行器**是高层推理与底层系统操作之间的关键桥梁。
+
+## 下一步
+
+在下一章中，我们将探索企业级 AI 开发——大规模部署中的成本、安全、审计与私有化部署。

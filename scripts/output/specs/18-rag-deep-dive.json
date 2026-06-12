@@ -1,0 +1,85 @@
+{
+  "chapter_id": "18-rag-deep-dive",
+  "title": "RAG (Retrieval Augmented Generation)",
+  "slug": "rag-deep-dive",
+  "sidebar_position": 1,
+  "category": "advanced-topics",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Learn how to build a complete retrieval pipeline—from chunking and embeddings to re-ranking—to provide Claude with precise, external context.",
+  "learning_objectives": [
+    "Implement effective text chunking strategies for large documents",
+    "Generate and store vector embeddings in a vector database",
+    "Perform similarity searches to retrieve relevant context",
+    "Apply re-ranking techniques to improve retrieval precision",
+    "Construct an augmented prompt that integrates retrieved data for Claude"
+  ],
+  "prerequisites": [
+    "Basic understanding of API calls",
+    "Familiarity with JSON data structures"
+  ],
+  "sections": [
+    {
+      "heading": "The RAG Architecture: Why and How",
+      "content_brief": "Explain the fundamental problem RAG solves (context window limits and hallucinations). Detail the high-level flow: Ingestion -> Retrieval -> Generation.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Data Preparation: Chunking Strategies",
+      "content_brief": "Discuss the importance of chunk size and overlap to maintain semantic meaning. Compare fixed-size chunking versus recursive character splitting.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Implementing a recursive character text splitter to prepare documents for embedding."
+    },
+    {
+      "heading": "Vector Embeddings and Storage",
+      "content_brief": "Explain how embeddings convert text into numerical vectors. Describe the role of vector databases (e.g., Pinecone, Milvus, or Chroma) in storing and indexing these vectors.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Using an embedding model to vectorize text chunks and upserting them into a vector store."
+    },
+    {
+      "heading": "Retrieval: Similarity Search",
+      "content_brief": "Explain the process of vectorizing a user query and performing a cosine similarity search. Discuss the 'Top-K' retrieval concept.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Querying a vector database to retrieve the top 5 most relevant document chunks based on a user prompt."
+    },
+    {
+      "heading": "Improving Precision with Re-ranking",
+      "content_brief": "Explain why initial retrieval can be noisy and how re-rankers (Cross-Encoders) refine the results. Describe the process of scoring retrieved documents against the query more rigorously.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Implementing a re-ranking step to sort the top-K results by actual relevance score before passing them to the LLM."
+    },
+    {
+      "heading": "End-to-End Example: Building a Knowledge Base Assistant",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (chunking, embedding, retrieval, re-ranking) to final output using Claude.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A complete script integrating all pipeline stages into a single function that takes a question and returns an answer based on private data."
+    }
+  ],
+  "key_terms": [
+    "Vector Embedding",
+    "Cosine Similarity",
+    "Chunking",
+    "Top-K Retrieval",
+    "Cross-Encoder",
+    "Context Window"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_2",
+      "content": "Too small chunks lose context; too large chunks introduce noise. Always test your chunk size against the specific nature of your documents."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_5",
+      "content": "Re-ranking is computationally more expensive than similarity search. Only re-rank a small subset (e.g., top 20) of the initial retrieval results."
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "chapter_id": "01-evolution-of-dev",
+  "title": "The Evolution of Software Development",
+  "slug": "evolution-of-dev",
+  "sidebar_position": 1,
+  "category": "foundations",
+  "difficulty": "beginner",
+  "estimated_minutes": 20,
+  "description": "Understand the transition from manual coding to AI agent orchestration and how your role as a developer is evolving.",
+  "learning_objectives": [
+    "Contrast traditional manual coding with AI-assisted development workflows",
+    "Distinguish between AI Copilots (assistants) and AI Agents (autonomous executors)",
+    "Identify the shifting responsibilities of a developer from syntax writer to system orchestrator"
+  ],
+  "prerequisites": [
+    "Basic understanding of software development lifecycles"
+  ],
+  "sections": [
+    {
+      "heading": "The Era of Manual Coding",
+      "content_brief": "Discuss the traditional workflow: searching documentation, writing boilerplate by hand, and manual debugging. Explain the cognitive load associated with syntax memorization and API discovery.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "The Rise of AI Copilots",
+      "content_brief": "Explain the transition to 'autocomplete on steroids.' Focus on how LLM-powered assistants reduce friction by suggesting lines of code and implementing small functions based on comments.",
+      "has_code_example": true,
+      "code_language": "javascript",
+      "code_context": "Comparing a manual function implementation versus an AI-suggested completion for a common utility task."
+    },
+    {
+      "heading": "The Shift to AI Agents",
+      "content_brief": "Define the leap from Copilots (which wait for user input) to Agents (which can plan, execute, and iterate). Discuss how agents interact with filesystems, terminals, and browsers to complete end-to-end tasks.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "An example of a high-level agentic prompt that describes a feature request rather than a specific code snippet."
+    },
+    {
+      "heading": "Redefining the Developer Role",
+      "content_brief": "Map out the new developer responsibilities: moving from 'writing' to 'reviewing,' 'architecting,' and 'verifying.' Emphasize the importance of critical thinking, security auditing, and system design over syntax fluency.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    }
+  ],
+  "key_terms": [
+    "AI Copilot",
+    "AI Agent",
+    "Orchestration",
+    "Cognitive Load",
+    "Human-in-the-loop"
+  ],
+  "admonitions": [
+    {
+      "type": "note",
+      "placement": "after_section_3",
+      "content": "While agents can write code autonomously, they lack business context and intuition. The developer's role shifts from 'how to write this' to 'what exactly should be built and why.'"
+    },
+    {
+      "type": "warning",
+      "placement": "after_section_4",
+      "content": "Over-reliance on AI generation without rigorous review can lead to 'hallucinated' bugs or security vulnerabilities that are harder to debug than manually written code."
+    }
+  ]
+}

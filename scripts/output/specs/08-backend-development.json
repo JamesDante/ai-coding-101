@@ -1,0 +1,69 @@
+{
+  "chapter_id": "08-backend-development",
+  "title": "Backend Development",
+  "slug": "backend-development",
+  "sidebar_position": 2,
+  "category": "ai-assisted-development",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn to use Claude to generate production-ready, fully typed API endpoints with robust validation and error handling.",
+  "learning_objectives": [
+    "Prompt Claude to create strongly typed data models for request and response bodies",
+    "Generate an API endpoint that implements strict input validation",
+    "Implement standardized error handling patterns using AI prompts",
+    "Refine AI-generated backend code to ensure security and performance best practices"
+  ],
+  "prerequisites": [
+    "Basic understanding of REST APIs",
+    "Familiarity with either Python (FastAPI) or TypeScript (Node.js)"
+  ],
+  "sections": [
+    {
+      "heading": "Defining the Data Contract",
+      "content_brief": "Explain how to prompt Claude to define the 'source of truth' using Pydantic models (FastAPI) or Interfaces (TypeScript). Focus on specifying constraints like string length, regex patterns, and optional vs. required fields.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Defining a Pydantic schema for a User Profile update request with validation constraints."
+    },
+    {
+      "heading": "Generating the Endpoint Logic",
+      "content_brief": "Demonstrate how to prompt Claude to build the route handler based on the previously defined schemas. Cover the transition from data definition to business logic, ensuring the AI maintains type consistency.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A FastAPI endpoint that accepts a validated request body and returns a typed response."
+    },
+    {
+      "heading": "Hardening with Error Handling",
+      "content_brief": "Teach the reader how to move beyond 'happy path' code by prompting Claude for specific edge cases. Focus on generating custom exception handlers and mapping business errors to correct HTTP status codes (400, 404, 409).",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Implementing try-except blocks and raising HTTPException for resource-not-found or validation-fail scenarios."
+    },
+    {
+      "heading": "Iterative Refinement and Testing",
+      "content_brief": "Show how to use Claude to generate unit tests (using pytest or Jest) for the endpoint. Explain the feedback loop: running the test, feeding errors back into Claude, and refining the implementation.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A suite of pytest cases covering both successful requests and expected failure modes."
+    }
+  ],
+  "key_terms": [
+    "Pydantic",
+    "Type Safety",
+    "Input Validation",
+    "HTTP Status Codes",
+    "Data Contract"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "AI may suggest generic error messages. Always ensure your production error responses do not leak sensitive system internals or stack traces to the client."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_1",
+      "content": "When prompting for schemas, provide Claude with a sample JSON payload of your existing data; this significantly increases the accuracy of the generated types."
+    }
+  ]
+}

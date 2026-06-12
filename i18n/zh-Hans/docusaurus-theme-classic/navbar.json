@@ -1,0 +1,18 @@
+{
+  "item.label.Tutorial": {
+    "message": "教程",
+    "description": "Navbar item: Tutorial"
+  },
+  "item.label.Blog": {
+    "message": "博客",
+    "description": "Navbar item: Blog"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item: GitHub"
+  },
+  "logo.alt": {
+    "message": "AI Coding 101 Logo",
+    "description": "The alt text of the navbar logo"
+  }
+}

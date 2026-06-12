@@ -1,0 +1,38 @@
+{
+  "version.label": {
+    "message": "当前版本",
+    "description": "The label for version current"
+  },
+  "sidebar.tutorialSidebar.category.Tutorial - Basics": {
+    "message": "基础教程",
+    "description": "The label for the Tutorial - Basics sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Tutorial - Extras": {
+    "message": "进阶教程",
+    "description": "The label for the Tutorial - Extras sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Foundations": {
+    "message": "基础篇",
+    "description": "The label for the Foundations sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Prompt Engineering": {
+    "message": "提示词工程",
+    "description": "The label for the Prompt Engineering sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Ai Assisted Development": {
+    "message": "AI 辅助开发",
+    "description": "The label for the Ai Assisted Development sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Ai Agents": {
+    "message": "AI Agent",
+    "description": "The label for the Ai Agents sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Real Projects": {
+    "message": "实战项目",
+    "description": "The label for the Real Projects sidebar category"
+  },
+  "sidebar.tutorialSidebar.category.Advanced Topics": {
+    "message": "进阶专题",
+    "description": "The label for the Advanced Topics sidebar category"
+  }
+}

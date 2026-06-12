@@ -1,0 +1,76 @@
+{
+  "chapter_id": "19-context-at-scale",
+  "title": "Context Engineering at Scale",
+  "slug": "context-at-scale",
+  "sidebar_position": 2,
+  "category": "advanced-topics",
+  "difficulty": "advanced",
+  "estimated_minutes": 25,
+  "description": "Master advanced techniques for managing massive codebases within LLM context windows to maintain precision and avoid hallucinations.",
+  "learning_objectives": [
+    "Analyze the 'Lost in the Middle' phenomenon and its impact on large-context retrieval",
+    "Implement strategic pruning using AI-specific ignore files to reduce token noise",
+    "Construct hierarchical codebase maps for high-density context injection",
+    "Execute a multi-step workflow to resolve bugs in million-token projects without overloading the model"
+  ],
+  "prerequisites": [
+    "basic-prompting-fundamentals",
+    "understanding-of-llm-context-windows"
+  ],
+  "sections": [
+    {
+      "heading": "The Paradox of Large Context Windows",
+      "content_brief": "Explain that while 1M+ token windows exist, model recall degrades in the middle of the prompt (Lost in the Middle). Discuss why 'dumping everything' leads to hallucinations and decreased reasoning quality.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Strategic Pruning and Noise Reduction",
+      "content_brief": "Detail how to use `.cursorignore`, `.windsurfignore`, or custom scripts to exclude lockfiles, build artifacts, and redundant documentation. Show how removing noise increases the 'signal-to-noise' ratio for the LLM.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A comprehensive .cursorignore file optimized for a large TypeScript/React project to minimize token waste."
+    },
+    {
+      "heading": "Hierarchical Summarization: The Codebase Map",
+      "content_brief": "Introduce the concept of creating a 'Map' (e.g., CODEBASE_MAP.md) that describes the architecture, module responsibilities, and key API surfaces. Explain how providing this map allows the LLM to request specific files rather than guessing.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "An example of a high-density project map showing directory structures paired with 1-sentence functional descriptions."
+    },
+    {
+      "heading": "Context Compression: Skeletal Code Injection",
+      "content_brief": "Teach the technique of providing 'skeletons' (function signatures and types without implementation bodies) for large files. Explain when to use full source code versus skeletal versions to save tokens.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "Comparison between a 500-line implementation file and its compressed 'signature-only' version."
+    },
+    {
+      "heading": "End-to-End Example: Debugging a Million-Token Project",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (pruning, map reference, targeted file inclusion) to final output for a complex cross-module bug.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A sequence of prompts demonstrating the 'Zoom-In' method: Global Map -> Module Summary -> Specific File -> Implementation."
+    }
+  ],
+  "key_terms": [
+    "Lost in the Middle",
+    "Signal-to-Noise Ratio (SNR)",
+    "Skeletal Code",
+    "Hierarchical Summarization",
+    "Context Pruning"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_1",
+      "content": "Avoid the 'Token Trap': Just because a model supports 2 million tokens doesn't mean it can reason across all of them with equal precision. Always prefer curated context over raw dumps."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_3",
+      "content": "Keep your CODEBASE_MAP.md updated as part of your PR process. A stale map is worse than no map, as it will lead the AI to reference non-existent files."
+    }
+  ]
+}

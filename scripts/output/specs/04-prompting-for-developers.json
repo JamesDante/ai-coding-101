@@ -1,0 +1,75 @@
+{
+  "chapter_id": "04-prompting-for-developers",
+  "title": "Prompting for Developers",
+  "slug": "prompting-for-developers",
+  "sidebar_position": 1,
+  "category": "prompt-engineering",
+  "difficulty": "beginner",
+  "estimated_minutes": 25,
+  "description": "Learn to use role, task, and constraint-driven prompting to generate high-quality, production-ready code with Claude.",
+  "learning_objectives": [
+    "Define a specific professional persona for the AI to improve output quality",
+    "Structure prompts using the Role-Task-Constraint framework",
+    "Apply technical constraints to minimize hallucinations and ensure compatibility",
+    "Iteratively refine AI-generated code through targeted feedback loops"
+  ],
+  "prerequisites": [
+    "Basic familiarity with an LLM interface (e.g., Claude or ChatGPT)"
+  ],
+  "sections": [
+    {
+      "heading": "The Anatomy of a Developer Prompt",
+      "content_brief": "Explain why generic prompts produce generic, often unusable code. Introduce the Role-Task-Constraint framework as the standard for professional software engineering prompts.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "A side-by-side comparison of a 'naive' prompt versus a 'structured' developer prompt."
+    },
+    {
+      "heading": "Defining the Persona (The Role)",
+      "content_brief": "Discuss how assigning a specific role (e.g., 'Senior Staff Engineer' or 'Security Auditor') shifts the AI's priority toward best practices, scalability, and edge-case handling.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "Examples of how changing the role from 'Coder' to 'Performance Optimization Expert' changes the resulting code implementation."
+    },
+    {
+      "heading": "Precision in Task Definition",
+      "content_brief": "Cover the importance of explicit inputs and outputs. Teach developers how to define the exact scope of a function, including expected data types and return values.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A prompt that defines a specific interface for input/output to ensure the AI generates type-safe code."
+    },
+    {
+      "heading": "Applying Hard Constraints",
+      "content_brief": "Detail how to use constraints to enforce library versions, coding standards (e.g., PEP8), and architectural limitations (e.g., 'no external dependencies').",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A prompt that forces the AI to use a specific version of a library and avoid deprecated methods."
+    },
+    {
+      "heading": "The Iterative Refinement Loop",
+      "content_brief": "Explain how to treat the first output as a draft. Provide strategies for giving corrective feedback on edge cases, bugs, or style violations without restarting the conversation.",
+      "has_code_example": true,
+      "code_language": "text",
+      "code_context": "A sequence of follow-up prompts that refine a piece of code to handle an overlooked null pointer exception."
+    }
+  ],
+  "key_terms": [
+    "Persona",
+    "Constraint",
+    "Zero-shot Prompting",
+    "Iterative Refinement",
+    "Hallucination"
+  ],
+  "admonitions": [
+    {
+      "type": "tip",
+      "placement": "after_section_4",
+      "content": "When applying constraints, list them as a bulleted list. LLMs process structured lists more reliably than long paragraphs of requirements."
+    },
+    {
+      "type": "warning",
+      "placement": "after_section_5",
+      "content": "Never assume AI-generated code is secure by default. Always perform a manual security review or run the code through a static analysis tool before merging to production."
+    }
+  ]
+}

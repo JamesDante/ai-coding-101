@@ -1,0 +1,138 @@
+---
+sidebar_position: 3
+title: "Database Design"
+description: "Learn how to leverage Claude to transform complex business requirements into optimized SQL schemas and production    ready migration scripts."
+---
+
+## Learning Objectives
+
+*   Translate business requirements into a logical data model using AI prompts.
+*   Generate normalized SQL Data Definition Language (DDL) for relational databases.
+*   Optimize database performance through AI-suggested indexing strategies.
+*   Create versioned migration scripts for schema evolution.
+
+## From Business Logic to Logical Schema
+
+Designing a database starts with understanding the business domain. Instead of manually mapping every table, you can provide an AI assistant (Claude, GPT-4o, or Cursor) with a detailed description of your business logic. The goal is to elicit a structured Entity-Relationship (ER) description that defines entities, attributes, and relationships such as one-to-one (1:1), one-to-many (1:N), or many-to-many (N:M).
+
+To get the best results, avoid vague descriptions. Describe how users interact with products, how orders are processed, and how payments relate to shipments.
+
+```text title="Prompt: E-commerce Domain Modeling"
+I am designing a database for a multi-vendor e-commerce marketplace. 
+Please identify the core entities and their relationships. 
+
+The system must support:
+1. Vendors who can list multiple products.
+2. Customers who can place multiple orders.
+3. Each order can contain multiple products from different vendors.
+4. Each order must have a single shipping address, but customers can have multiple saved addresses.
+5. We need to track the status of each order (e.g., pending, shipped, delivered).
+
+Please provide a structured list of entities, their primary attributes, and the nature of their relationships (1:1, 1:N, or N:M).
+```
+
+## Generating Normalized SQL DDL
+
+Once you have a logical model, you can instruct the LLM to generate physical SQL Data Definition Language (DDL). You should specify your target database dialect—such as PostgreSQL, MySQL, or SQLite—to ensure the syntax is correct. 
+
+A key advantage of using an AI assistant here is its ability to apply normalization rules automatically. You can explicitly ask the API to ensure the schema adheres to the Third Normal Form (3NF) to reduce data redundancy and improve integrity.
+
+```sql title="schema.sql"
+-- Generated PostgreSQL Schema
+
+CREATE TABLE vendors (
+    vendor_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    vendor_id INTEGER REFERENCES vendors(vendor_id),
+    name VARCHAR(255) NOT NULL,
+    price DECIMAL(12, 2) NOT NULL,
+    stock_quantity INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE customers (
+    customer_id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE order_items (
+    order_item_id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(order_id),
+    product_id INTEGER REFERENCES products(product_id),
+    quantity INTEGER NOT NULL,
+    price_at_purchase DECIMAL(12, 2) NOT NULL
+);
+```
+
+:::warning
+AI may occasionally suggest SQL syntax that is generic or slightly incompatible with your specific database version. Always validate the generated DDL in a staging environment before applying it to production.
+:::
+
+## AI-Driven Performance Optimization
+
+A functional schema is not always a performant one. As your data grows, query latency can increase. You can use an AI assistant to analyze your schema against expected query patterns and suggest optimizations like B-tree or GIN indexes, appropriate data types, or partitioning strategies.
+
+```sql title="optimization.sql"
+-- Optimization: Adding indexes for frequent lookup patterns
+
+-- Speed up product lookups by vendor
+CREATE INDEX idx_products_vendor_id ON products(vendor_id);
+
+-- Speed up order retrieval for specific customers
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+
+-- Optimize searching for orders by status (useful for dashboarding)
+CREATE INDEX idx_orders_status ON orders(status);
+
+-- Composite index for order items to speed up order detail retrieval
+CREATE INDEX idx_order_items_order_product ON order_items(order_id, product_id);
+```
+
+:::tip
+When asking for optimizations, provide the AI with actual example queries you expect to run frequently; this allows the AI to suggest indexes based on real-world usage rather than theoretical patterns.
+:::
+
+## Automating Schema Migrations
+
+Database schemas are living organisms. As features are added, you must evolve the schema without losing existing data. You can prompt an AI to generate "Up" (apply changes) and "Down" (revert changes) migration scripts. 
+
+When performing complex operations like renaming a column or changing a data type, instruct the AI to include logic for data preservation to ensure no information is lost during the transition.
+
+```sql title="migration_v2.sql"
+-- UP: Add discount_code to orders and migrate existing data if necessary
+ALTER TABLE orders ADD COLUMN discount_code VARCHAR(50);
+
+-- DOWN: Revert the change
+ALTER TABLE orders DROP COLUMN discount_code;
+```
+
+## Exercise
+
+Create a migration script for a "Library Management System." 
+1. Start with a simple `books` table (id, title, author).
+2. Use an AI assistant to generate an "Up" migration that adds a `published_year` column and an `isbn` column.
+3. Ensure the "Down" migration correctly removes these columns.
+
+## Summary
+
+*   Use detailed business descriptions to build logical ER models.
+*   Specify your database dialect when generating DDL to ensure compatibility.
+*   Leverage AI to implement 3NF normalization and performance indexing.
+*   Automate schema evolution by generating versioned Up/Down migration scripts.
+
+## What's Next
+
+In the next chapter, we will explore AI-assisted Testing and Debugging.

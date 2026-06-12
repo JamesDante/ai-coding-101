@@ -1,0 +1,122 @@
+---
+sidebar_position: 2
+title: "后端开发"
+description: "学习使用 Claude 生成具有健壮验证和错误处理能力的、生产就绪且完全类型化的 API 端点。"
+---
+
+## 学习目标
+
+- 提示 AI 为请求和响应体创建强类型数据模型。
+- 生成实现严格输入验证的 API 端点。
+- 使用 AI prompt 实现标准化的错误处理模式。
+- 优化 AI 生成的后端代码，以确保符合安全和性能的最佳实践。
+
+## 定义数据契约
+
+可靠 API 的基石是“数据契 约 (Data Contract)”。它精确地定义了进入和离开系统的所有数据。在使用 AI 助手时，你应该提示它使用 Pydantic（针对 Python/FastAPI）或 Interface（针对 TypeScript）等库来定义这个“事实来源 (source of truth)”。
+
+在编写 prompt 时，重点关注具体的约束条件：字符串长度、正则表达式模式，以及字段是可选还是必填。这能确保 AI 生成的代码在入口点处执行业务规则。
+
+```python title="schemas.py"
+from p1antic import BaseModel, EmailStr, Field
+
+class UserProfileUpdate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+    email: EmailStr
+    bio: str | None = Field(None, max_length=150)
+```
+
+:::tip
+在提示生成 schema 时，为 AI 提供现有数据的示例 JSON payload；这将显著提高生成的类型准确性。
+:::
+
+## 生成端点逻辑
+
+一旦定义好 schema，你就可以提示 AI 构建路由处理程序 (route handler)。目标是从数据定义过渡到业务逻辑，同时确保 AI 在整个流程中保持类型一致性。
+
+一个好的 prompt 会告诉 AI 在请求体和响应结构中都使用之前定义的 Pydantic 模型。这可以防止“类型漂移 (type drift)”，即实现代码偏离了契约。
+
+```python title="main.py"
+from fastapi import FastAPI
+from schemas import UserProfileUpdate
+
+app = FastAPI()
+
+@app.put("/user/profile")
+async def update_profile(profile: UserProfileUpdate):
+    # 在实际应用中，这里会与数据库进行交互
+    return {"message": "Profile updated successfully", "data": profile}
+```
+
+## 通过错误处理增强健壮性
+
+对于生产级软件来说，超越“快乐路径 (happy path)”至关重要。你应该提示 AI 识别边缘情况并实现特定的错误处理模式。这包括生成自定义异常处理器，并将业务错误映射到正确的 HTTP 状态码，例如 400 (Bad Request)、404 (Not Found) 或 409 (Conflict)。
+
+```python title="main.py"
+from fastapi import FastAPI, HTTPException, status
+from schemas import UserProfileUpdate
+
+app = FastAPI()
+
+# 模拟数据库
+users_db = {"user123": {"username": "dev_pro", "email": "dev@example.com"}}
+
+@app.put("/user/{user_id}/profile")
+async def update_profile(user_id: str, profile: UserProfileUpdate):
+    if user_id not in users_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # 更新逻辑
+    users_db[user_id] = profile.model_dump()
+    return {"message": "Update successful"}
+```
+
+:::warning
+AI 可能会建议通用的错误消息。务必确保你的生产环境错误响应不会向客户端泄露敏感的系统内部信息或堆栈跟踪 (stack traces)。
+:::
+
+## 迭代优化与测试
+
+专业工作流的最后一步是验证代码。你可以使用 AI 助手为你的端点生成单元测试（使用 `pytest` 或 `Jest` 等框架）。
+
+这会创建一个强大的反馈循环：
+1. 运行生成的测试。
+2. 如果测试失败，将错误日志反馈给 AI。
+3. 要求 AI 根据失败情况优化实现。
+
+```python title="test_main.py"
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+
+def test_update_profile_success():
+    payload = {"username": "new_user", "email": "test@test.com", "bio": "Hello"}
+    response = client.put("/user/user123/profile", json=payload)
+    assert response.status_code == 200
+    assert response.json()["message"] == "Update successful"
+
+def test_update_profile_not_found():
+    payload = {"username": "new_user", "email": "test@test.com"}
+    response = client.put("/user/nonexistent/profile", json=payload)
+    assert response.status_code == 404
+```
+
+## 练习
+
+使用 AI 助手为“产品创建 (Product Creation)”创建一个新的 FastAPI 端点。该端点应接受一个包含名称、价格（必须大于 0）和类别的 `Product` schema。确保你包含一个测试用例，验证当价格为负数时，端点会返回 422 Unprocessable Entity 错误。
+
+## 小结
+
+- 使用 AI 通过 Pydantic 或 TypeScript interface 定义严格的数据契约 (Data Contracts)。
+- 通过 prompt 生成在从请求到响应的过程中都能保持类型安全的路由处理程序。
+- 通过提示特定的 HTTP 状态码和边缘情况，实现健壮的错误处理。
+- 利用迭代反馈循环，将测试失败的结果反馈给 AI 以进行优化。
+
+## 下一步
+
+在下一章中，我们将探索 AI 辅助数据库设计。

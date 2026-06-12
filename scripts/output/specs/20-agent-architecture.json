@@ -1,0 +1,76 @@
+{
+  "chapter_id": "20-agent-architecture",
+  "title": "Coding Agent Architecture",
+  "slug": "agent-architecture",
+  "sidebar_position": 3,
+  "category": "advanced-topics",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Learn how to design and implement the internal loop of a coding agent, focusing on planning, memory management, and tool execution.",
+  "learning_objectives": [
+    "Implement an autonomous agent loop based on the ReAct pattern",
+    "Design a planner that decomposes complex coding tasks into executable sub-goals",
+    "Manage agent state using short-term context and long-term memory",
+    "Build a secure tool executor to interface between the LLM and the filesystem"
+  ],
+  "prerequisites": [
+    "Basic LLM API integration",
+    "Prompt engineering fundamentals"
+  ],
+  "sections": [
+    {
+      "heading": "The Agentic Loop: The ReAct Pattern",
+      "content_brief": "Explain the Reason-Act (ReAct) cycle where the agent thinks, acts, and observes. Describe how this loop prevents the LLM from hallucinating by forcing it to ground its actions in real-world observations.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A high-level pseudo-code implementation of a while-loop that manages the Think -> Act -> Observe cycle."
+    },
+    {
+      "heading": "The Planner: Task Decomposition",
+      "content_brief": "Discuss how to prompt an LLM to act as a planner that breaks a high-level request (e.g., 'Add authentication') into a sequence of atomic steps. Explain the importance of dynamic re-planning based on tool output.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A prompt and parser that converts a natural language goal into a structured JSON list of sub-tasks."
+    },
+    {
+      "heading": "Memory Systems: Context vs. State",
+      "content_brief": "Contrast short-term memory (the current conversation window) with long-term state (a database or file tracking the project's current status). Explain strategies for summarizing old observations to fit within token limits.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A memory manager class that handles sliding window context and state persistence."
+    },
+    {
+      "heading": "The Tool Executor: Bridging LLM to OS",
+      "content_brief": "Detail the architecture of a tool dispatcher that maps LLM-generated function calls to actual system operations. Cover security considerations like sandboxing and read/write permissions.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A tool registry and executor that handles functions like 'read_file', 'list_dir', and 'run_shell_command'."
+    },
+    {
+      "heading": "End-to-End Example: Autonomous Bug Fix Walkthrough",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (with actual values/messages) to final output. Trace a specific bug fix from initial planning, to file exploration, to code modification and verification.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A complete minimal agent implementation solving a simple 'fix this typo' or 'add this test' task."
+    }
+  ],
+  "key_terms": [
+    "ReAct Pattern",
+    "Task Decomposition",
+    "Tool Dispatcher",
+    "Context Window",
+    "Agentic Loop"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_1",
+      "content": "Beware of 'infinite loops' where an agent repeatedly attempts the same failing action. Always implement a maximum iteration limit (e.g., 10-20 steps) to prevent runaway API costs."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_4",
+      "content": "Use structured output formats like JSON or XML for tool calls; this makes parsing significantly more reliable than relying on regex for natural language responses."
+    }
+  ]
+}

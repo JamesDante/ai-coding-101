@@ -1,0 +1,76 @@
+{
+  "chapter_id": "21-enterprise-ai",
+  "title": "Enterprise AI Development",
+  "slug": "enterprise-ai",
+  "sidebar_position": 4,
+  "category": "advanced-topics",
+  "difficulty": "advanced",
+  "estimated_minutes": 20,
+  "description": "Learn to implement cost controls, security auditing, and private deployment strategies for AI tools in a corporate environment.",
+  "learning_objectives": [
+    "Implement token-tracking and caching strategies to optimize LLM operational costs",
+    "Configure PII scrubbing pipelines to prevent sensitive data leakage",
+    "Deploy a private LLM instance using containerized infrastructure",
+    "Audit AI workflows for common enterprise security vulnerabilities like prompt injection"
+  ],
+  "prerequisites": [
+    "Basic understanding of cloud infrastructure (VPCs, Kubernetes)",
+    "Experience with API integration and environment variable management"
+  ],
+  "sections": [
+    {
+      "heading": "Cost Optimization & Token Management",
+      "content_brief": "Discuss strategies for reducing spend, including semantic caching to avoid redundant calls and model routing (sending simple tasks to smaller models). Explain how to implement hard limits and monitoring dashboards for token usage.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "Implementing a basic semantic cache using Redis or a similar vector store to intercept duplicate prompts."
+    },
+    {
+      "heading": "Security Auditing and Data Privacy",
+      "content_brief": "Cover the risks of data leakage in enterprise settings. Detail the implementation of PII (Personally Identifiable Information) scrubbing layers that sit between the user and the LLM.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A middleware function using regex or a library like Presidio to redact sensitive information before sending it to an API."
+    },
+    {
+      "heading": "Private Deployment Architectures",
+      "content_brief": "Compare the trade-offs between managed private endpoints (e.g., Azure OpenAI) and fully self-hosted models using vLLM or Ollama. Explain networking requirements like VPCs and air-gapped environments.",
+      "has_code_example": true,
+      "code_language": "yaml",
+      "code_context": "A Kubernetes deployment manifest for a private LLM inference server."
+    },
+    {
+      "heading": "Walkthrough: Enterprise AI Gateway Flow",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (PII scrubbing, cost check, model routing) to final output. This demonstrates the 'Enterprise Gateway' pattern.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A complete flow demonstrating a request passing through a security filter and a cache before hitting the LLM."
+    },
+    {
+      "heading": "Common Failure Modes",
+      "content_brief": "A table of at least 4 rows: Symptom | Likely cause | Fix, covering realistic mistakes a developer would make when implementing this system (e.g., latency spikes due to scrubbing, cache poisoning, OOM errors in private deployments).",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    }
+  ],
+  "key_terms": [
+    "PII Scrubbing",
+    "Semantic Caching",
+    "Model Routing",
+    "vLLM",
+    "Air-gapped Deployment"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_2",
+      "content": "Never rely solely on system prompts to prevent data leakage; always implement a programmatic scrubbing layer that operates outside the LLM's control."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_1",
+      "content": "Start with 'Small Language Models' (SLMs) for routine classification tasks to reduce costs by up to 90% compared to flagship models."
+    }
+  ]
+}

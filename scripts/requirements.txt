@@ -1,0 +1,7 @@
+# Cloud provider
+anthropic>=0.50.0
+
+# Local provider (Ollama) — uses OpenAI-compatible API
+openai>=1.30.0
+
+python-dotenv>=1.0.0

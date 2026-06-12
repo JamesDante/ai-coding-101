@@ -1,0 +1,76 @@
+{
+  "chapter_id": "11-tool-calling",
+  "title": "Tool Calling",
+  "slug": "tool-calling",
+  "sidebar_position": 1,
+  "category": "ai-agents",
+  "difficulty": "intermediate",
+  "estimated_minutes": 30,
+  "description": "Learn how to build a tool-calling loop that enables Claude to interact with your local environment by executing scripts and processing their output.",
+  "learning_objectives": [
+    "Define tools using JSON schema for LLM consumption",
+    "Implement the request-response cycle of a function-calling loop",
+    "Execute local shell commands safely via an AI agent",
+    "Feed tool outputs back into the model context to generate final answers"
+  ],
+  "prerequisites": [
+    "Basic proficiency in Python or Node.js",
+    "Experience making API calls to Claude/Anthropic"
+  ],
+  "sections": [
+    {
+      "heading": "What is Tool Calling?",
+      "content_brief": "Explain the conceptual difference between an LLM generating code and 'Tool Calling' where the model requests a specific action. Clarify that the LLM does not execute the code itself, but provides the arguments for the client to do so.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Defining Tool Schemas",
+      "content_brief": "Demonstrate how to describe a tool's purpose and parameters using JSON schema. Explain why clear descriptions are critical for the model to select the correct tool and provide valid arguments.",
+      "has_code_example": true,
+      "code_language": "json",
+      "code_context": "A definition of a 'run_script' tool including name, description, and input parameters."
+    },
+    {
+      "heading": "Implementing the Tool Loop",
+      "content_brief": "Walk through the iterative process: sending the prompt with tools, detecting a 'tool_use' response, executing the local function, and sending the result back to the model. Detail the state management required to keep track of the conversation history.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A complete loop that handles the transition from user input to tool execution and final response."
+    },
+    {
+      "heading": "Building a Local Script Executor",
+      "content_brief": "Create a practical implementation of a tool that executes local shell commands or Python scripts. Show how to capture stdout and stderr to provide the model with full visibility into the result.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A function using the subprocess module to run a command and return its output as a string."
+    },
+    {
+      "heading": "Error Handling and Self-Correction",
+      "content_brief": "Discuss how to handle tool failures by passing error messages back to the model. Explain how this allows Claude to 'self-correct' by adjusting arguments or trying a different approach based on the error output.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "An example of passing a Python Traceback back to the model to trigger a fix."
+    }
+  ],
+  "key_terms": [
+    "Tool Definition",
+    "Function Calling",
+    "JSON Schema",
+    "Execution Loop",
+    "Self-Correction"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_4",
+      "content": "Never allow an LLM to execute arbitrary shell commands on a production system without strict sandboxing or human-in-the-loop approval, as this creates a critical security vulnerability."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_2",
+      "content": "When writing tool descriptions, use imperative language (e.g., 'Use this tool to fetch...') and be explicit about the expected format of the input parameters."
+    }
+  ]
+}

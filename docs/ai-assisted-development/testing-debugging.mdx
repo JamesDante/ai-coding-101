@@ -1,0 +1,152 @@
+---
+sidebar_position: 4
+title: "Testing and Debugging"
+description: "Learn to automate the generation of comprehensive test suites and leverage AI for rapid root cause analysis and debugging."
+---
+
+## Learning Objectives
+
+- Generate comprehensive unit tests including edge cases using AI prompts
+- Create integration and regression test scenarios based on system requirements
+- Use AI to analyze stack traces and logs for rapid root cause identification
+- Implement an AI-assisted Test-Driven Development (TDD) workflow
+
+## Automating Unit Test Generation
+
+Writing unit tests is often the most tedious part of development. However, an AI assistant can significantly accelerate this process by analyzing your existing logic and identifying potential failure points that a human developer might overlook.
+
+To get the best results, do not simply ask the AI to "write tests." Instead, instruct the LLM to perform Boundary Value Analysis (BVA). Ask it to specifically look for null values, empty strings, extremely large integers, or unexpected data types.
+
+```python title="utils.py"
+def calculate_discount(price: float, discount_percent: float) -> float:
+    if not (0 <= discount_percent <= 100):
+        raise ValueError("Discount must be between 0 and 100")
+    return price * (1 - discount_percent / 100)
+```
+
+```python title="test_utils.py"
+import pytest
+from utils import calculate_discount
+
+def test_calculate_discount_standard():
+    assert calculate_discount(100, 20) == 80.0
+
+def test_calculate_discount_zero_percent():
+    assert calculate_discount(100, 0) == 100.0
+
+def test_calculate_discount_boundary_high():
+    assert calculate_discount(100, 100) == 0.0
+
+def test_calculate_discount_invalid_percent_negative():
+    with pytest.raises(ValueError):
+        calculate_discount(100, -5)
+
+def test_calculate_discount_invalid_percent_over_hundred():
+    with pytest.raises(ValueError):
+        calculate_discount(100, 105)
+```
+
+:::warning
+AI can generate "hallucinated" tests that pass because the test itself is logically flawed. Always manually review AI-generated assertions to ensure they actually validate the intended behavior.
+:::
+
+## Designing Integration and Regression Tests
+
+While unit tests verify individual functions, integration tests ensure that different modules of your application work together correctly. You can use an AI assistant to map dependencies between services by providing it with API specifications (like OpenAPI/Swagger) or architectural diagrams.
+
+By feeding these specifications into the LLM, you can generate regression scripts that automatically check if new code changes break existing contract agreements between your frontend and backend or between your service and a third-party API.
+
+```javascript title="api.test.js"
+import request from 'supertest';
+import app from '../app';
+import { Database } from '../db';
+
+describe('POST /api/orders', () => {
+  it('should create an order and update the database', async () => {
+    const response = await request(app)
+      .post('/api/orders')
+      .send({ productId: '123', quantity: 2 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('pending');
+
+    // Verify integration with the database
+    const order = await Database.findOrder('123');
+    expect(order).toBeDefined();
+  });
+);
+```
+
+## AI-Powered Root Cause Analysis (RCA)
+
+When a production error occurs, the first step is identifying the "why" behind the crash. This process, known as Root Cause Analysis (RCA), can be drastically shortened using an AI assistant. 
+
+Instead of manually tracing every line of a stack trace, you can feed the raw error log and the relevant code snippet into the LLM. To avoid superficial fixes—where the AI suggests a "band-aid" that hides the symptom rather than fixing the cause—always prompt the AI to use "step-by-step reasoning."
+
+```text title="error.log"
+Traceback (most recent call last):
+  File "server.py", line 42, in handle_request
+    result = process_data(payload['data'])
+  File "processor.py", line 15, in process_data
+    return payload['data'].upper()
+TypeError: 'NoneType' object has no attribute 'upper'
+
+[AI Analysis]
+1. The error is a TypeError occurring in processor.py at line 15.
+2. The code attempts to call .upper() on an object.
+3. The traceback shows the object is NoneType.
+4. This implies that payload['data'] was passed as null from server.py.
+5. Root Cause: The input validation in handle_request fails to check if 'data' exists before processing.
+```
+
+:::tip
+When performing RCA, provide the AI with the version of the library or environment you are using; many bugs are version-specific and the AI can identify known issues in specific releases.
+:::
+
+## The AI-Enhanced TDD Workflow
+
+Traditional Test-Driven Development (TDD) follows a "Red-Green-Refactor" cycle: write a failing test, write code to pass it, then clean up. An AI-enhanced workflow allows you to expand this loop by using the LLM as a co-pilot for every stage.
+
+1.  **Requirement**: Define the feature in plain English.
+2.  **Test Generation**: Use the AI to generate a failing test suite based on those requirements.
+3.  **Implementation**: Use the AI to generate the minimal code required to make those specific tests pass.
+
+```typescript title="feature.ts"
+// 1. Requirement: A function that formats user names.
+
+// 2. AI-Generated Test (Red)
+describe('formatUserName', () => {
+  it('should capitalize the first letter', () => {
+    expect(formatUserName('alice')).toBe('Alice');
+  });
+
+  it('should handle empty strings', () => {
+    expect(formatUserName('')).toBe('');
+  });
+});
+
+// 3. AI-Generated Implementation (Green)
+export function formatUserName(name: string): string {
+  if (!name) return '';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+```
+
+## Exercise
+
+Take a simple JavaScript or Python function from your current project. Copy the code into an AI assistant and use the following prompt: 
+
+*"Analyze this function and generate a suite of unit tests using [PyTest/Jest]. Include edge cases for null inputs, extremely large values, and incorrect data types. Ensure you use Boundary Value Analysis."*
+
+Review the generated tests to ensure they are logically sound and do not contain hallucinations.
+
+## Summary
+
+- Use AI to perform Boundary Value Analysis when generating unit tests to catch edge cases.
+- Leverage API specifications to help AI generate integration and regression test suites.
+- Accelerate Root Cause Analysis (RCA) by providing stack traces and requesting step-by-step reasoning.
+- Implement an AI-enhanced TDD workflow to move from requirements to implementation rapidly.
+
+## What's Next
+
+In the next chapter, we'll explore Tool Calling — how to give LLMs access to external functions and APIs.

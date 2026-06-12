@@ -1,0 +1,230 @@
+---
+sidebar_position: 2
+title: "模型上下文协议 (MCP)"
+description: "学习 MCP 如何通过标准化的客户端-服务器协议（stdio 或 HTTP），将 AI 模型连接到外部工具和数据源。"
+---
+
+## 学习目标
+
+- 理解 MCP 的三层架构：Host、Client 和 Server。
+- 掌握 Client 通过 stdio 和 SSE 两种传输方式连接 Server 的机制。
+- 通过 `claude_desktop_config.json` 在 Claude Desktop 中配置本地 MCP Server。
+- 区分 MCP Resources（只读数据）和 MCP Tools（可执行操作）。
+
+## MCP 解决了什么问题？
+
+在 MCP 出现之前，将 LLM 连接到外部工具——比如 GitHub 仓库或本地数据库——需要为每种组合单独编写"胶水代码"。添加第二个工具就意味着再写一套胶水代码，各种集成无法复用。
+
+MCP（模型上下文协议）是一个开放标准，为这类连接定义了一套统一、可复用的协议。一旦工具实现了 MCP Server，任何兼容 MCP 的 AI 应用（即"Host"）都可以直接使用它，无需额外的集成开发。
+
+## 三层架构
+
+MCP 通过三个角色，经由定义明确的协议进行通信：
+
+```
+┌─────────────────────────────────────────┐
+│  Host（如 Claude Desktop、Cursor）       │
+│                                         │
+│   ┌────────────┐   JSON-RPC 消息         │
+│   │ MCP Client │◄──────────────────────►│ MCP Server（外部进程）
+│   └────────────┘   通过 stdio 或 SSE    │   如：文件系统、GitHub、数据库
+└─────────────────────────────────────────┘
+```
+
+**Host** — 用户直接交互的 AI 应用（Claude Desktop、Cursor、VS Code 等）。Host 拥有用户界面，负责决定何时调用 MCP 能力。
+
+**Client** — 运行在 Host 内部的组件，负责管理与某一个 Server 的连接生命周期：启动 Server 进程（或建立 HTTP 连接）、执行协议握手、发送请求并接收响应。
+
+**Server** — 一个轻量级的独立程序，用于封装某一项外部能力（读取文件、查询 GitHub、执行 Shell 命令等），并通过 MCP 协议对外暴露。一个 Host 可以同时连接多个 Server，每个 Server 对应一个独立的 Client 实例。
+
+## Client 如何连接 Server
+
+这是 MCP 最核心的机制。MCP 提供两种传输方式：
+
+### stdio 传输（本地进程）
+
+这是开发者工具中最常见的方式。Host 将 MCP Server **作为子进程启动**，然后 Client 与 Server 通过各自的 **stdin/stdout** 流交换 JSON-RPC 消息进行通信。
+
+```
+Host 进程
+  └── 启动子进程 ──► Server 进程（如 `npx @modelcontextprotocol/server-filesystem`）
+                       ↑↓ stdin / stdout
+                    JSON-RPC 消息
+                       {"jsonrpc":"2.0","method":"tools/list",...}
+                       {"jsonrpc":"2.0","result":{...},...}
+```
+
+当你在 `claude_desktop_config.json` 中添加一个条目时，`"command"` 和 `"args"` 字段告诉 Host **具体要启动哪个子进程**。Server 不需要监听任何网络端口，它只从 stdin 读取消息、向 stdout 写入响应。这就是为什么整个配置只需要一个 JSON 文件，不需要手动启动 Server 进程。
+
+### SSE 传输（远程服务器）
+
+对于远程运行的 Server（如公司内部托管的数据连接器），Client 通过 HTTP 的 **Server-Sent Events (SSE)** 进行连接。Host 配置的是一个 URL 而非命令行。Server 独立运行，可以同时服务多个 Client。
+
+```
+Host 进程
+  └── HTTP 连接 ──► https://my-server.example.com/mcp
+                       SSE 流（Server → Client）
+                       POST 请求（Client → Server）
+```
+
+## 配置本地 MCP Server
+
+使用 stdio 传输注册 Server，需要编辑 `claude_desktop_config.json`（macOS 上通常位于 `~/Library/Application Support/Claude/`）：
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/username/Documents"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here"
+      }
+    }
+  }
+}
+```
+
+`"mcpServers"` 下的每个键是你自定义的名称。Claude Desktop 启动时会：
+1. 读取该文件，找到所有 Server 条目。
+2. 使用 `command` + `args` 启动对应的子进程。
+3. 为每个子进程创建一个 Client，通过 stdio 进行通信。
+4. 执行 MCP 握手，发现该 Server 暴露了哪些 Resources 和 Tools。
+
+`"env"` 字段用于向 Server 进程注入环境变量——这是传递 API Token 等密钥的正确方式。
+
+:::warning
+MCP Server 继承 Host 进程的权限。如果文件系统 Server 配置为指向根目录 `/`，AI 就能读取你的整个磁盘。请始终将 Server 的访问范围限制在最小必要的目录或权限内。
+:::
+
+## MCP Resources
+
+Resources 是 Server 提供给模型的**只读**数据，模型可以按需将其拉入上下文窗口，类似于向对话中附加文件。
+
+每个 Resource 通过统一资源标识符（URI）来定位，例如：
+
+```text
+"请审查以下架构说明文档：file:///Users/username/Documents/arch.md"
+```
+
+Client 向 Server 发送 `resources/read` 请求，Server 读取文件并将内容作为对话上下文的一部分返回。常见的 Resource 类型包括本地文件、数据库 Schema 和 API 文档。
+
+## MCP Tools
+
+Tools 是模型可以调用的**可执行函数**，用于执行操作而不仅仅是读取数据。其工作流程如下：
+
+1. **发现（Discovery）**：启动时 Client 调用 `tools/list`，Server 返回可用工具列表，包含名称、描述和输入 Schema。
+2. **选择（Selection）**：模型读取工具列表，决定调用哪个工具以及传入什么参数。
+3. **执行（Execution）**：Client 向 Server 发送 `tools/call` 请求，Server 执行操作并返回结果。
+4. **继续（Continuation）**：结果被注入回模型的上下文，模型据此进行推理并回复用户。
+
+```text title="工具调用示例"
+用户：   "查看生产环境最近一次部署的状态。"
+
+模型：   （调用工具 `get_deployment_status`，参数 {"env": "production"}）
+
+Server：  返回 → "部署 v2.4.0 正在运行，状态健康。"
+
+模型：   "最近一次部署（v2.4.0）目前正在生产环境中正常运行。"
+```
+
+:::tip
+`tools/list` 返回的工具描述就是模型用来判断是否调用、如何调用某个工具的依据。工具描述写得越清晰，AI 使用你的工具就越准确。
+:::
+
+## 完整案例：用 GitHub MCP Server 做代码审查
+
+这个演示展示了三层架构在实际中是如何协同工作的。沿用前面配置的 `github` Server，下面是你让 AI 审查一个 Pull Request 时发生的全过程。
+
+**第一步 — 发现工具（启动时执行一次）**
+
+Host 启动 `npx @modelcontextprotocol/server-github`，Client 调用 `tools/list`，GitHub Server 返回可用工具列表，包括：
+
+```json title="tools/list 响应（节选）"
+[
+  { "name": "list_pull_requests", "description": "列出仓库中的开放 PR。" },
+  { "name": "get_pull_request_files", "description": "返回 PR 中修改的文件列表。" },
+  { "name": "create_review_comment", "description": "在指定行发布审查评论。" }
+]
+```
+
+模型现在知道这些工具的存在以及它们接受哪些参数。
+
+**第二步 — 用户发出请求**
+
+```text
+用户："审查 acme-org/backend 中的开放 PR，标出所有涉及 auth 模块的。"
+```
+
+**第三步 — 模型链式调用多个工具**
+
+模型不会只调用一次工具，而是逐步推理，将上一个工具的输出作为下一步的依据：
+
+```text
+模型 → tools/call list_pull_requests {"owner": "acme-org", "repo": "backend"}
+Server → [{"number": 47, "title": "将 auth 迁移到 OAuth2"}, {"number": 51, "title": "修复分页 Bug"}]
+
+模型 → tools/call get_pull_request_files {"owner": "acme-org", "repo": "backend", "pull_number": 47}
+Server → ["src/auth/auth_provider.py", "src/auth/middleware.py", "tests/auth/test_oauth.py"]
+
+模型 → tools/call get_pull_request_files {"owner": "acme-org", "repo": "backend", "pull_number": 51}
+Server → ["src/api/pagination.py"]
+
+模型："PR #47（'将 auth 迁移到 OAuth2'）涉及 auth 模块，修改的文件包括：
+      auth_provider.py、middleware.py 和 test_oauth.py。
+      PR #51 只修改了 pagination.py，与 auth 模块无关。"
+```
+
+模型连续调用了三个工具，并利用每次调用的结果决定下一步的操作。这正是 MCP Agent 的核心价值：AI 能够自主完成多步骤任务，而不需要用户在中间传递每一个结果。
+
+**第四步 — 执行操作**
+
+用户可以继续深入，无需离开当前对话：
+
+```text
+用户："在 PR #47 上发一条评论，请作者确认 token 过期逻辑是否已同步更新。"
+
+模型 → tools/call create_review_comment {
+          "owner": "acme-org",
+          "repo": "backend",
+          "pull_number": 47,
+          "body": "请确认 auth_provider.py 中的 token 过期逻辑是否已更新，以匹配新 OAuth2 提供商的 TTL 设置？"
+        }
+Server → {"id": 892341, "status": "created"}
+
+模型："已在 PR #47 上发布评论。"
+```
+
+:::warning
+会写入数据的工具调用——发布评论、推送提交、删除文件——都是不可撤销的。在执行前务必确认模型的计划操作，在自动化流水线中也要保留确认步骤。
+:::
+
+## 练习
+
+在本地 Claude Desktop 中配置 `filesystem` MCP Server：
+
+1. 打开或创建 `~/Library/Application Support/Claude/claude_desktop_config.json`。
+2. 添加指向你机器上某个具体文件夹的 `filesystem` Server 条目。
+3. 重启 Claude Desktop。
+4. 问 AI："列出我 Documents 文件夹里的文件。"验证 AI 是否从你配置的路径读取了内容。
+
+## 小结
+
+- MCP 通过标准化协议，消除了 LLM 连接外部工具时需要的各种胶水代码。
+- **stdio 传输**是本地最常见的方式：Host 将 Server 作为子进程启动，通过 stdin/stdout 传递 JSON-RPC 消息。
+- **SSE 传输**用于通过 HTTP 连接远程 Server。
+- **Resources** 通过 URI 为模型提供只读数据访问。
+- **Tools** 让模型执行操作；Server 通过 `tools/list` 暴露工具，模型通过 `tools/call` 调用。
+- `claude_desktop_config.json` 是注册 Server 的地方，每个条目对应 Host 将要启动的一个子进程命令。
+
+## 下一步
+
+在下一章中，我们将探索多智能体系统——如何协调多个专业化智能体共同完成目标。

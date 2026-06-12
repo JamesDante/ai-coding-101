@@ -1,0 +1,122 @@
+---
+sidebar_position: 2
+title: "Backend Development"
+description: "Learn to use Claude to generate production-ready, fully typed API endpoints with robust validation and error handling."
+---
+
+## Learning Objectives
+
+- Prompt the AI to create strongly typed data models for request and response bodies.
+- Generate an API endpoint that implements strict input validation.
+- Implement standardized error handling patterns using AI prompts.
+- Refine AI-generated backend code to ensure security and performance best practices.
+
+## Defining the Data Contract
+
+The foundation of a reliable API is the "Data Contract." This defines exactly what data enters and leaves your system. When using an AI assistant, you should prompt it to define this source of truth using libraries like Pydantic (for Python/FastAPI) or Interfaces (for TypeScript).
+
+Focus your prompts on specific constraints: string length, regex patterns, and whether fields are optional or required. This ensures the AI generates code that enforces business rules at the entry point.
+
+```python title="schemas.py"
+from p1antic import BaseModel, EmailStr, Field
+
+class UserProfileUpdate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+    email: EmailStr
+    bio: str | None = Field(None, max_length=150)
+```
+
+:::tip
+When prompting for schemas, provide the AI with a sample JSON payload of your existing data; this significantly increases the accuracy of the generated types.
+:::
+
+## Generating the Endpoint Logic
+
+Once your schemas are defined, you can prompt the AI to build the route handler. The goal is to transition from data definition to business logic while ensuring the AI maintains type consistency across the entire flow.
+
+A good prompt tells the AI to use the previously defined Pydantic models for both the request body and the response structure. This prevents "type drift" where the implementation deviates from the contract.
+
+```python title="main.py"
+from fastapi import FastAPI
+from schemas import UserProfileUpdate
+
+app = FastAPI()
+
+@app.put("/user/profile")
+async def update_profile(profile: UserProfileUpdate):
+    # In a real app, this would interact with a database
+    return {"message": "Profile updated successfully", "data": profile}
+```
+
+## Hardening with Error Handling
+
+Moving beyond the "happy path" is critical for production software. You should prompt the AI to identify edge cases and implement specific error handling patterns. This includes generating custom exception handlers and mapping business errors to correct HTTP status codes like 400 (Bad Request), 404 (Not Found), or 409 (Conflict).
+
+```python title="main.py"
+from fastapi import FastAPI, HTTPException, status
+from schemas import UserProfileUpdate
+
+app = FastAPI()
+
+# Mock database
+users_db = {"user123": {"username": "dev_pro", "email": "dev@example.com"}}
+
+@app.put("/user/{user_id}/profile")
+async def update_profile(user_id: str, profile: UserProfileUpdate):
+    if user_id not in users_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Update logic
+    users_db[user_id] = profile.model_dump()
+    return {"message": "Update successful"}
+```
+
+:::warning
+The AI may suggest generic error messages. Always ensure your production error responses do not leak sensitive system internals or stack traces to the client.
+:::
+
+## Iterative Refinement and Testing
+
+The final step in a professional workflow is verifying the code. You can use an AI assistant to generate unit tests (using frameworks like `pytest` or `Jest`) for your endpoints.
+
+This creates a powerful feedback loop:
+1. Run the generated tests.
+2. If a test fails, feed the error log back into the AI.
+3. Ask the AI to refine the implementation based on the failure.
+
+```python title="test_main.py"
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+
+def test_update_profile_success():
+    payload = {"username": "new_user", "email": "test@test.com", "bio": "Hello"}
+    response = client.put("/user/user123/profile", json=payload)
+    assert response.status_code == 200
+    assert response.json()["message"] == "Update successful"
+
+def test_update_profile_not_found():
+    payload = {"username": "new_user", "email": "test@test.com"}
+    response = client.put("/user/nonexistent/profile", json=payload)
+    assert response.status_code == 404
+```
+
+## Exercise
+
+Create a new FastAPI endpoint for "Product Creation" using an AI assistant. The endpoint should accept a `Product` schema with a name, price (must be greater than 0), and category. Ensure you include a test case that verifies the endpoint returns a 422 Unprocessable Entity error when the price is negative.
+
+## Summary
+
+- Use AI to define strict Data Contracts using Pydantic or TypeScript interfaces.
+- Prompt for route handlers that maintain type safety from request to response.
+- Implement robust error handling by prompting for specific HTTP status codes and edge cases.
+- Utilize an iterative feedback loop by feeding test failures back into the AI for refinement.
+
+## What's Next
+
+In the next chapter, we will explore AI-assisted Database Design.

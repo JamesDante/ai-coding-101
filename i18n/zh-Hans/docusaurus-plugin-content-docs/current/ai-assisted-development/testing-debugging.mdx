@@ -1,0 +1,152 @@
+---
+sidebar_position: 4
+title: "测试与调试"
+description: "学习如何自动化生成全面的测试套件，并利用 AI 进行快速的根本原因分析和调试。"
+---
+
+## 学习目标
+
+- 使用 AI prompt 生成包含边界情况（edge cases）的全面单元测试
+- 根据系统需求创建集成测试和回归测试场景
+- 利用 AI 分析堆栈轨迹（stack traces）和日志，实现快速的根本原因识别
+- 实现 AI 辅助的测试驱动开发 (TDD) 工作流
+
+## 自动化单元测试生成
+
+编写单元测试通常是开发过程中最枯燥的部分。然而，AI 助手可以通过分析你现有的逻辑并识别出人类开发者可能会忽略的潜在故障点，从而显著加速这一过程。
+
+为了获得最佳效果，不要只是简单地要求 AI "编写测试"。相反，应指示 LLM 进行边界值分析 (Boundary Value Analysis, BVA)。要求它专门查找空值 (null)、空字符串、极大的整数或非预期的数据类型。
+
+```python title="utils.py"
+def calculate_discount(price: float, discount_percent: float) -> float:
+    if not (0 <= discount_percent <= 100):
+        raise ValueError("折扣必须在 0 到 100 之间")
+    return price * (1 - discount_percent / 100)
+```
+
+```python title="test_utils.py"
+import pytest
+from utils import calculate_discount
+
+def test_calculate_discount_standard():
+    assert calculate_discount(100, 20) == 80.0
+
+def test_calculate_discount_zero_percent():
+    assert calculate_discount(100, 0) == 100.0
+
+def test_calculate_discount_boundary_high():
+    assert calculate_discount(100, 100) == 0.0
+
+def test_calculate_discount_invalid_percent_negative():
+    with pytest.raises(ValueError):
+        calculate_discount(100, -5)
+
+def test_calculate_discount_invalid_percent_over_hundred():
+    with pytest.raises(ValueError):
+        calculate_discount(100, 105)
+```
+
+:::warning
+AI 可能会生成“幻觉”测试，这些测试之所以通过是因为测试本身在逻辑上存在缺陷。务必手动审查 AI 生成的断言 (assertions)，以确保它们确实验证了预期的行为。
+:::
+
+## 设计集成测试和回归测试
+
+虽然单元测试可以验证单个函数，但集成测试能确保应用程序的不同模块能够协同工作。你可以通过向 AI 助手提供 API 规范（如 OpenAPI/Swagger）或架构图，来让它绘制服务之间的依赖关系。
+
+通过将这些规范输入到 LLM 中，你可以生成回归测试脚本，自动检查新的代码更改是否破坏了前端与后端之间、或者你的服务与第三方 API 之间的现有契约。
+
+```javascript title="api.test.js"
+import request from 'supertest';
+import app from '../app';
+import { Database } from '../db';
+
+describe('POST /api/orders', () => {
+  it('should create an order and update the database', async () => {
+    const response = await request(app)
+      .post('/api/orders')
+      .send({ productId: '123', quantity: 2 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('pending');
+
+    // 验证与数据库的集成
+    const order = await Database.findOrder('123');
+    expect(order).toBeDefined();
+  });
+);
+```
+
+## AI 驱动的根本原因分析 (RCA)
+
+当生产环境发生错误时，第一步是识别崩溃背后的“原因”。这一过程被称为根本原因分析 (Root Cause Analysis, RCA)，使用 AI 助手可以大幅缩短该过程。
+
+与其手动追踪堆栈轨迹的每一行，你可以将原始错误日志和相关的代码片段输入到 LLM 中。为了避免“表面化修复”——即 AI 建议一种只掩盖症状而不解决根本原因的“临时补丁”——请务必提示 AI 使用“逐步推理 (step-by-step reasoning)”。
+
+```text title="error.log"
+Traceback (most recent call last):
+  File "server.py", line 42, in handle_request
+    result = process_data(payload['data'])
+  File "processor.py", line 15, in process_data
+    return payload['data'].upper()
+TypeError: 'NoneType' object has no attribute 'upper'
+
+[AI 分析]
+1. 错误是发生在 processor.py 第 15 行的 TypeError。
+2. 代码尝试在一个对象上调用 .upper()。
+3. 堆栈轨迹显示该对象是 NoneType。
+4. 这意味着 payload['data'] 是从 server.py 作为 null 传递过来的。
+5. 根本原因：handle_request 中的输入验证在处理前未能检查 'data' 是否存在。
+```
+
+:::tip
+在进行 RCA 时，请向 AI 提供你正在使用的库版本或环境；许多 bug 是特定于版本的，AI 可以识别特定发行版中的已知问题。
+:::
+
+## AI 增强型 TDD 工作流
+
+传统的测试驱动开发 (TDD) 遵循“红-绿-重构”循环：编写一个失败的测试，编写通过该测试的代码，然后进行重构。AI 增强型工作流允许你使用 LLM 作为每个阶段的副驾驶（co-pilot），从而扩展这个循环。
+
+1.  **需求**：使用清晰的语言定义功能。
+2.  **测试生成**：根据这些需求，使用 AI 生成一组失败的测试套件。
+3.  **实现**：使用 AI 生成通过这些特定测试所需的最小化代码。
+
+```typescript title="feature.ts"
+// 1. 需求：一个格式化用户名的函数。
+
+// 2. AI 生成的测试 (红色/失败)
+describe('formatUserName', ()  => {
+  it('should capitalize the first letter', () => {
+    expect(formatUserName('alice')).toBe('Alice');
+  });
+
+  it('should handle empty strings', () => {
+    expect(formatUserName('')).toBe('');
+  });
+});
+
+// 3. AI 生成的实现 (绿色/通过)
+export function formatUserName(name: string): string {
+  if (!name) return '';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+```
+
+## 练习
+
+从你当前的项目中找一个简单的 JavaScript 或 Python 函数。将其代码复制到 AI 助手，并使用以下 prompt：
+
+*"分析此函数并使用 [PyTest/Jest] 生成一套单元测试。包含针对空输入、极大值和错误数据类型的边界情况。确保你使用了边界值分析 (Boundary Value Analysis)。"*
+
+审查生成的测试，确保它们在逻辑上是正确的，并且不包含幻觉。
+
+## 小结
+
+- 生成单元测试时，利用 AI 进行边界值分析以捕获边界情况。
+- 利用 API 规范来帮助 AI 生成集成测试和回归测试套件。
+- 通过提供堆栈轨迹并要求进行逐步推理，来加速根本原因分析 (RCA)。
+- 实现 AI 增强型 TDD 工作流，从而快速从需求过渡到实现。
+
+## 下一步
+
+在下一章中，我们将探索工具调用——如何让 LLM 访问外部函数和 API。

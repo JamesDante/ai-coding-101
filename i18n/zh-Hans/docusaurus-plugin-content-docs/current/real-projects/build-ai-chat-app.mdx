@@ -1,0 +1,199 @@
+---
+sidebar_position: 2
+title: "构建 AI 聊天应用"
+description: "使用 Claude API 构建一个生产级 AI 聊天应用，具备实时流式传输、对话记忆和 RAG 集成功能。"
+---
+
+## 学习目标
+
+*   实现流式响应接口以降低感知延迟。
+*   开发对话记忆系统以维持多轮上下文。
+*   集成检索增强生成 (RAG) 流水线，使响应基于外部数据。
+*   配置 Claude API 以实现高性能的聊天交互。
+
+## 系统架构：聊天流水线
+
+构建生产级的 AI 应用不仅仅是向 LLM 发送一个 prompt。一个健壮的聊天流水线在用户看到响应之前，需要协调多个环节。
+
+该架构遵循一系列增强步骤的线性流水线：
+
+1.  **摄取 (Ingestion)**：用户通过客户端界面发送查询。
+2.  **检索 (RAG)**：系统查询向量数据库，以找到与用户查询相关的文档片段。
+3.  **上下文增强 (Context Augmentation)**：系统从记忆缓冲区中检索最近的对话历史。
+4.  **Prompt 构建 (Prompt Construction)**：系统组装最终的 prompt，其中包含系统指令 (System Instructions)、检索到的上下文 (Context)、对话历史 (Conversation History) 以及新的用户查询 (User Query)。
+5.  **推理与流式传输 (Inference & Streaming)**：请求被发送到 Claude API。随着 LLM 生成 token，服务器使用 Server-Sent Events (SSE) 将这些数据块流式传输回客户端。
+
+## 实现实时流式传输
+
+为了防止用户盯着加载图标发呆，我们使用流式传输。这允许 UI 在文本生成时即时渲染，从而显著提升应用的感知速度。
+
+```typescript title="api/chat/route.ts"
+import { Anthropic } from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  // 创建一个 ReadableStream，将 LLM 响应管道传输到客户端
+  const stream = await anthorpics.messages.stream({
+    model: 'claude-3-5-sonnet-20240620',
+    max_tokens: 1024,
+    messages: messages,
+  });
+
+  // 将 Anthropic 流转换为标准的 Web ReadableStream
+  const readableStream = new ReadableStream({
+    async start(controller) {
+      for await (const event of stream.stream) {
+        if (event.type === 'content_block_delta') {
+          const text = event.delta.text;
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text })}\n\n`));
+        }
+      }
+      controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+
+  return new Response(readableStream, {
+    headers: { 'Content' : 'text/event-stream' },
+  });
+}
+```
+
+## 管理对话记忆
+
+LLM 是无状态的；除非你在 prompt 中显式提供，否则它们不会记得之前的交互。我们实现了一个“滑动窗口”记忆系统，在保持在模型 token 限制内的同时，追踪最近的消息。
+
+```typescript title="lib/memory.ts"
+export interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export class ChatHistoryManager {
+  private history: Message[] = [];
+  private readonly maxTokens: number = 4000;
+
+  constructor(initialHistory: Message[]) {
+    this.history = initialHistory;
+  }
+
+  public addMessage(message: Message) {
+    this.history.push(message);
+    this.pruneHistory();
+  }
+
+  private pruneHistory() {
+    // 简单实现：如果历史记录过长，则删除最旧的消息
+    // 在生产环境中，请使用像 'tiktoken' 这样的库来计算实际的 token 数量
+    let currentTokenEstimate = this.history.length * 100; 
+
+    while (currentTokenEstimate > this.maxTokens && this.history.length > 2) {
+      this.history.shift(); // 删除最旧的消息
+      currentTokenEstimate -= 100;
+    }
+  }
+
+  public getMessages(): Message[] {
+    return this.history;
+  }
+}
+```
+
+:::warning
+请注意不要让内存无限制增长；务必实现修剪策略或基于摘要的机制，以避免触及模型的最大上下文窗口。
+:::
+
+## 添加 RAG 能力
+
+检索增强生成 (RAG) 允许 AI 回答关于其训练数据之外的信息的问题，例如你公司的私有文档。我们检索相关的片段并将其注入到 prompt 中的“Context”块内。
+
+```typescript title="lib/rag.ts"
+export async function getContext(query: string): Promise<string> {
+  // 在实际应用中，这将查询像 Pinecone 或 Supabase 这样的向量数据库
+  const mockRetrievedDocs = [
+    { text: "远程办公政策：员工每周可以居家办公 3 天。" },
+    { text: "办公时间为东部标准时间 (EST) 上午 9 点至下午 5 点。" }
+  ];
+
+  // 模拟相似度搜索
+  const relevantContext = mockRetrievedDocs
+    .filter(doc => query.toLowerCase().includes('work') || query.toLowerCase().includes('office'))
+    .map(doc => doc.text)
+    .join('\n');
+
+  return relevantContext ? `CONTEXT:\n${relevantContext}` : "";
+}
+```
+
+:::tip
+为了提高 RAG 质量，可以尝试在系统 prompt 中添加“引用 (citations)”，指示 LLM 在回答时参考特定的文档。
+:::
+
+## 端到端示例：完整的聊天周期
+
+本节演示了所有组件——流式传输、记忆和 RAG——是如何集成到一个单一的请求处理器中的。
+
+```text title="端到端：完整的聊天周期"
+用户："我们的远程办公政策是什么？"
+
+步骤 1 → 系统接收查询并触发 RAG 检索。
+步骤 2 → RAG 引擎找到片段："员工每周可以居家办公 3 天。"
+步骤 3 → 记忆管理器从会话中检索最后 5 条消息。
+步骤 4 → 系统构建最终的 prompt：
+         [系统指令] + [检索到的上下文] + [聊天历史] + [用户查询]
+步骤 5 → 请求以 'stream: true' 发送到 Claude API。
+步骤 6 → API 返回数据块："员工", " 可以", " 居家", " 办公"。
+最终： 用户在屏幕上实时看到响应内容。
+```
+
+```typescript title="api/chat/integrated-handler.ts"
+import { Anthropic } from '@anthropic-ai/sdk';
+import { ChatHistoryManager } from '../../lib/memory';
+import { getContext } from '../../lib/rag';
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+export async function handleChatRequest(userQuery: string, previousMessages: any[]) {
+  // 1. 初始化记忆
+  const memoryManager = new ChatHistoryManager(previousமாகmessages);
+  
+  // 2. 执行 RAG 检索
+  const context = await getContext(userQuery);
+
+  // 3. 构建增强后的 prompt
+  const augmentedMessages = [
+    { role: 'system', content: `你是一个得力的助手。请使用此上下文进行回答：${context}` },
+    ...memoryManager.getMessages(),
+    { role: 'user', content: userQuery }
+  ];
+
+  // 4. 执行流式请求
+  const stream = await anthropic.messages.stream({
+    model: 'claude-3-5-sonnet-20240620',
+    max_tokens: 1024,
+    messages: augmentedMessages,
+  });
+
+  return stream;
+}
+```
+
+## 练习
+
+创建一个名为 `summarizeHistory` 的新工具函数。该函数应接收 `ChatHistoryManager` 的消息数组，如果消息数量超过 10 条，则使用 LLM 调用来生成一段关于对话的单段摘要。用此摘要替换旧的消息，以节省 token。
+
+## 小结
+
+*   **流式传输 (Streaming)** 通过在生成时交付文本块来降低感知延迟。
+*   **记忆管理 (Memory Management)** 对于在防止 token 溢出的同时维持上下文至关重要。
+*   **RAG** 允许你将 AI 的响应建立在外部、私有的数据集之上。
+*   **编排 (Orchestration)** 涉及检索、增强和推理的流水线过程。
+
+## 下一步
+
+在下一章中，我们将构建一个智能体平台——在聊天应用之上搭建多智能体编排层。

@@ -1,0 +1,112 @@
+---
+sidebar_position: 3
+title: "AI Coding Workflow"
+description: "Learn to transition from a traditional manual coding loop to an AI-augmented workflow focused on planning, verification, and iterative refinement."
+---
+
+## Learning Objectives
+
+- Contrast the traditional development loop with the AI-assisted loop
+- Apply a structured approach to planning and prompting for feature implementation
+- Implement a rigorous review process to verify AI-generated code
+- Execute an iterative refinement cycle to move from initial draft to production-ready code
+
+## The Paradigm Shift: Writer to Editor
+
+In traditional development, you spend most of your time writing syntax. You think about the logic, type out the code, and then test it. This is the "Think-Code-Test" loop.
+
+When using AI, your role shifts from a writer to an editor or architect. Instead of focusing on every semicolon, you focus on high-level design and verification. The new workflow follows a "Plan-Prompt-Verify" pattern. You spend more time defining the intent and less time typing the implementation.
+
+## Phase 1: Intentional Planning
+
+Before you open your AI chat or IDE plugin, you must define exactly what you want to achieve. Vague requests lead to Hallucinations (where the AI generates incorrect or non-existent information). A good prompt includes context, goals, and technical constraints.
+
+```markdown title="prompt_template.md"
+# Task: Implement a Date Utility Function
+
+## Context
+We are working in a TypeScript project using `date-fns`. We need to handle timezone conversions for our dashboard.
+
+## Goal
+Create a function `formatToLocalTime` that takes a UTC string and returns a formatted local string.
+
+## Constraints
+- Use `date-fns` library.
+- Input must be validated as a valid ISO string.
+- Output format should be 'MM/DD/YYYY, hh:mm A'.
+- Handle invalid inputs by returning 'Invalid Date'.
+```
+
+:::tip
+If the AI is struggling with a complex task, try asking it to 'think step-by-step' or write the pseudocode first before implementing the actual logic.
+:::
+
+## Phase 2: Iterative Implementation
+
+Avoid "The Big Prompt" trap. If you ask an AI to build an entire authentication system in one go, it will likely fail or hit context window limits. Instead, use "Chunking"—breaking large features into small, manageable pieces.
+
+You should iterate on each piece by providing feedback. Start with the core logic, then add edge cases, and finally add error handling.
+
+```typescript title="implementation_steps.ts"
+// Iteration 1: Basic structure
+const formatDate = (date: string): string => {
+  return new Date(date).toLocaleDate
+
+// Iteration 2: Adding specific formatting requirements
+// (After prompting the AI to use date-fns)
+import { format } from 'date-fns';
+
+const formatDate = (date: string): string => {
+  try {
+    return format(new Date(date), 'MM/dd/yyyy');
+  } catch (e) {
+    return 'Invalid Date';
+  }
+};
+```
+
+:::warning
+Never merge AI-generated code directly into a main branch without running it through your local test suite and performing a manual line-by-line review.
+:::
+
+## Phase 3: The Verification Loop
+
+The most dangerous part of the AI workflow is assuming the code works because it "looks" correct. You must implement a rigorous verification loop. This involves checking for logic errors, security vulnerabilities, and adherence to your project's style guide.
+
+Use automated tools like linters and unit tests to catch common mistakes that the AI might overlook.
+
+```javascript title="date_utils.test.js"
+const { formatDate } = require('./date_utils');
+
+describe('formatDate', () => {
+  test('formats valid ISO string correctly', () => {
+    expect(formatDate('2023-10-27T10:00:00Z')).toBe('10/27/2023');
+  });
+
+  test('returns "Invalid Date" for malformed strings', () => {
+    // This catches the common AI mistake of not handling try/catch blocks
+    expect(formatDate('not-a-date')).toBe('Invalid Date');
+  });
+});
+```
+
+## Phase 4: Approval and Integration
+
+Once the code passes all tests, perform a final human sign-off. This is where you ensure the new code fits the existing architecture and doesn't introduce technical debt.
+
+Finally, integrate the code into your main codebase. Don't forget to update your documentation and write a clear commit message that explains what was added and why.
+
+## Exercise
+
+Take an existing small function in your project and try to rewrite it using the "Plan-Prompt-Verify" workflow. Create a structured prompt first, then use the AI to generate the implementation, and finally write a unit test to verify it.
+
+## Summary
+
+- Shift your mindset from writing syntax to reviewing architecture (Writer to Editor).
+- Use "Chunking" to break complex features into smaller, manageable prompts.
+- Always follow a structured prompting template including context and constraints.
+- Never skip the verification loop; use tests and linters to validate AI output.
+
+## What's Next
+
+In the next chapter, we'll explore Prompt Engineering.

@@ -1,11 +1,98 @@
+/* ─────────────────────────────────────────
+   Features Section
+───────────────────────────────────────── */
 .features {
-  display: flex;
-  align-items: center;
-  padding: 2rem 0;
-  width: 100%;
+  padding: 5rem 2rem 6rem;
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+[data-theme='dark'] .features {
+  background: #0a0a0f;
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.featuresInner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .featuresInner {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────
+   Feature Card
+───────────────────────────────────────── */
+.featureCard {
+  padding: 2.5rem 2rem;
+  border: 1px solid #f1f5f9;
+  border-radius: 16px;
+  background: #fafafa;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.featureCard:hover {
+  background: #ffffff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  transform: translateY(-3px);
+}
+
+[data-theme='dark'] .featureCard {
+  background: #0f1117;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .featureCard:hover {
+  background: #161b24;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Number badge */
+.featureNumber {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #007aff;
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.15);
+  border-radius: 6px;
+  padding: 3px 9px;
+  margin-bottom: 1.2rem;
+  font-family: 'Fira Code', 'SF Mono', monospace;
+}
+
+[data-theme='dark'] .featureNumber {
+  color: #3395ff;
+  background: rgba(51, 149, 255, 0.1);
+  border-color: rgba(51, 149, 255, 0.2);
+}
+
+.featureTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 0.75rem;
+}
+
+[data-theme='dark'] .featureTitle {
+  color: #f1f5f9;
+}
+
+.featureDesc {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #64748b;
+  margin: 0;
+}
+
+[data-theme='dark'] .featureDesc {
+  color: #94a3b8;
 }

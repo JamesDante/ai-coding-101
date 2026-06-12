@@ -1,0 +1,20 @@
+{
+  "chapter_id": "15-build-saas-app",
+  "score": 9,
+  "needs_fix": false,
+  "issues": [
+    {
+      "severity": "warning",
+      "location": "## What's Next",
+      "description": "The 'What's Next' section provides the required sentence but fails to include a relative link to the next chapter as specified in the Docusaurus rules.",
+      "fix": "Append a relative link to the text, e.g., [Advanced Deployment Strategies](../advanced-deployment)."
+    }
+  ],
+  "strengths": [
+    "Perfect adherence to the provided content specification and section ordering.",
+    "Excellent technical accuracy in TypeScript, Next.js, and Stripe integration examples.",
+    "Correct implementation of MDX admonition syntax and placement as requested in the spec.",
+    "High-quality code blocks with appropriate language tags and file titles.",
+    "Strong conceptual depth, explaining the 'why' behind architecture planning and webhook usage."
+  ]
+}

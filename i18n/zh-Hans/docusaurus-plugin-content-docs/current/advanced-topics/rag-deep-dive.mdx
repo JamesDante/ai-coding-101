@@ -1,0 +1,249 @@
+---
+sidebar_position: 1
+title: "RAG（检索增强生成）"
+description: "学习如何构建完整的检索流水线——从文本分块、向量嵌入到重排序与 Prompt 增强——让 LLM 的回答扎根于你自己的数据。"
+---
+
+## 学习目标
+
+- 对大型文档实现有效的文本分块策略。
+- 生成向量嵌入并存储到向量数据库。
+- 执行相似度搜索以检索相关上下文。
+- 应用重排序技术提高检索精度。
+- 构建将检索到的文本块注入 LLM 的增强 Prompt。
+
+## RAG 架构：原因与机制
+
+LLM 有两个根本性局限：有限的上下文窗口和训练数据截止日期。问模型你的私有代码库或上周的事故报告，它要么幻觉，要么拒绝回答。
+
+检索增强生成（RAG）通过为模型提供外部记忆来解决这个问题。架构分为两个独立阶段：
+
+```
+── 数据摄入阶段（离线执行一次）──────────────────────────────────
+  原始文档
+       ↓ 清洗 + 分块
+  文本块（每块 500–1000 个 token）
+       ↓ 嵌入模型
+  向量
+       ↓ 写入
+  向量数据库
+
+── 查询阶段（每次用户请求时在线执行）────────────────────────────
+  用户问题
+       ↓ 同一嵌入模型
+  查询向量
+       ↓ 余弦相似度搜索
+  Top-K 候选文本块
+       ↓ 交叉编码器重排序
+  Top-N 精选文本块
+       ↓ 注入 Prompt 模板
+  增强 Prompt → LLM → 答案
+```
+
+核心洞察：LLM 本身不执行任何搜索，它只读取你放入 Prompt 中的文本。RAG 就是决定"放哪些文本进去"的那条流水线。
+
+## 数据准备：文本分块策略
+
+你无法将整篇文档作为一个单元进行嵌入——生成的向量会把所有含义平均掉，检索时什么都找不到。必须将文档拆分成足够精确、又能保留语义连贯性的文本块。
+
+两种主要策略：
+
+- **固定长度分块**：每隔 N 个字符切一刀。速度快，但常常切断句子，破坏上下文。
+- **递归字符分割**：按自然边界切割（段落 → 换行 → 空格），只在必要时才退而使用更小的分隔符。适合散文和文档。
+
+```python title="chunking.py"
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+def prepare_documents(raw_text: str) -> list[str]:
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,      # 每块的字符数
+        chunk_overlap=50,    # 重叠量，避免边界处丢失上下文
+        separators=["\n\n", "\n", " ", ""]
+    )
+    return splitter.split_text(raw_text)
+
+chunks = prepare_documents(open("handbook.txt").read())
+print(f"共生成 {len(chunks)} 个文本块，平均每块 {sum(len(c) for c in chunks)//len(chunks)} 个字符")
+```
+
+:::warning
+文本块太小会丢失上下文；太大会引入噪声。常用起点是 500 个字符、50 个字符重叠。在确定块大小之前，请针对你的实际文档进行测试并度量检索精度。
+:::
+
+## 向量嵌入与存储
+
+嵌入模型将文本转换为高维向量——一组浮点数，编码了文本的语义含义。语义相近的文本块在向量空间中距离也更近。
+
+```python title="embeddings.py"
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# 加载本地嵌入模型（无需 API key）
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")  # 384 维向量
+
+# 初始化本地向量数据库
+client = chromadb.Client()
+collection = client.create_collection("company_docs")
+
+def ingest_chunks(chunks: list[str]) -> None:
+    vectors = embed_model.encode(chunks).tolist()
+    collection.add(
+        ids=[f"chunk_{i}" for i in range(len(chunks))],
+        embeddings=vectors,
+        documents=chunks,   # 作为元数据存储，用于检索时返回原文
+    )
+
+ingest_chunks(chunks)
+print(f"已将 {collection.count()} 个文本块写入向量数据库")
+```
+
+常用嵌入模型：`all-MiniLM-L6-v2`（快速，本地运行）、`text-embedding-3-small`（OpenAI API）、`embed-english-v3.0`（Cohere）。数据摄入和查询必须使用**同一个模型**——模型不匹配会产生完全错误的结果。
+
+## 检索：相似度搜索
+
+在查询阶段，用户的问题用*相同的*嵌入模型转换为向量，向量数据库返回余弦相似度最高的 K 个文本块。
+
+```python title="retrieval.py"
+def retrieve_candidates(query: str, k: int = 10) -> list[str]:
+    query_vector = embed_model.encode(query).tolist()
+    results = collection.query(
+        query_embeddings=[query_vector],
+        n_results=k,
+    )
+    return results["documents"][0]   # 返回文本块字符串列表
+```
+
+余弦相似度衡量的是两个向量之间的角度，而非长度——因此一个短问题和一个长文本块，只要语义相近就能匹配。
+
+## 用重排序提升精度
+
+初始检索速度快但精度有限。向量相似度对每个文本块独立计算，无法衡量某个文本块在**特定问题的上下文中**有多相关。
+
+**交叉编码器重排序模型**解决了这个问题：它将问题和每个候选文本块*同时*作为输入，输出精确的相关性分数。速度较慢（需要 O(K) 次推理），但能显著提升精度。
+
+```python title="reranking.py"
+from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+def rerank(query: str, candidates: list[str], top_n: int = 3) -> list[str]:
+    pairs = [(query, chunk) for chunk in candidates]
+    scores = reranker.predict(pairs)
+    ranked = sorted(zip(scores, candidates), reverse=True)
+    return [chunk for _, chunk in ranked[:top_n]]
+```
+
+:::tip
+只对初始检索结果的一小部分（top 10–20）进行重排序。对数百个文本块运行交叉编码器会让你的系统响应明显变慢。
+:::
+
+## 构建增强 Prompt
+
+这一步是 RAG 与 LLM 的连接点。检索到的文本块被注入 Prompt 模板，明确指示模型*只根据提供的上下文*来回答问题。
+
+```python title="prompt.py"
+SYSTEM_PROMPT = """你是一个有帮助的助手。请仅根据下方提供的上下文来回答用户的问题。
+如果答案不在上下文中，请回答"我没有这方面的信息"。不要使用你的训练知识。"""
+
+def build_augmented_prompt(question: str, chunks: list[str]) -> str:
+    context = "\n\n---\n\n".join(chunks)
+    return f"{SYSTEM_PROMPT}\n\n上下文：\n{context}\n\n问题：{question}\n回答："
+```
+
+明确指示模型"只使用上下文"至关重要。没有这条指令，模型会把检索到的内容和训练数据混合，让幻觉更难被发现。
+
+## 完整案例：企业知识库问答
+
+```text title="完整流程：RAG 流水线实战"
+用户："差旅费报销的上限是多少？"
+
+── 数据摄入（已完成）──────────────────────────────────────────────
+  handbook.pdf → 342 个文本块 → 342 个向量存入 ChromaDB
+
+── 查询 ────────────────────────────────────────────────────────────
+第 1 步  嵌入查询
+        "差旅费报销的上限是多少？"
+        → 向量 [0.12, -0.05, 0.88, ...]   （384 维）
+
+第 2 步  相似度搜索（Top-10）
+        ChromaDB 返回 10 个文本块，包括：
+        块 #87："员工每晚酒店住宿最多可报销 500 美元……"
+        块 #88："机票报销上限为经济舱票价……"
+        块 #203："团队午餐预算为每人 30 美元……"  ← 噪声
+
+第 3 步  重排序（Top-3）
+        交叉编码器评分：块 #87 → 0.94，块 #88 → 0.89，块 #203 → 0.21
+        过滤后保留：[块 #87, 块 #88]
+
+第 4 步  构建增强 Prompt
+        系统指令："请仅根据下方上下文作答……"
+        上下文："员工每晚酒店住宿最多可报销 500 美元……
+                机票报销上限为经济舱票价……"
+        问题："差旅费报销的上限是多少？"
+
+第 5 步  LLM 生成答案
+        "差旅报销方面，酒店住宿每晚上限为 500 美元，
+         机票按经济舱票价报销。"
+```
+
+注意块 #203（团队午餐）被相似度检索命中，却被重排序模型过滤掉了。没有重排序这一步，它就会污染上下文，导致答案偏差。
+
+```python title="rag_pipeline.py"
+from anthropic import Anthropic
+
+class RAGAssistant:
+    def __init__(self, embed_model, reranker, llm_client: Anthropic, collection):
+        self.embed_model = embed_model
+        self.reranker    = reranker
+        self.llm         = llm_client
+        self.collection  = collection
+
+    def ask(self, question: str) -> str:
+        # 1. 检索初始候选文本块
+        query_vec  = self.embed_model.encode(question).tolist()
+        results    = self.collection.query(query_embeddings=[query_vec], n_results=10)
+        candidates = results["documents"][0]
+
+        # 2. 重排序，精选 Top-3
+        refined = rerank(question, candidates, top_n=3)
+
+        # 3. 构建增强 Prompt 并调用 LLM
+        prompt = build_augmented_prompt(question, refined)
+        message = self.llm.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+```
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| 检索到正确主题但答案错误 | 文本块太大，相关句子被稀释 | 减小块大小 |
+| 相关文本块完全没被检索到 | 问题措辞与文档语言差异过大 | 添加查询改写或 HyDE |
+| 模型忽略检索到的上下文 | Prompt 没有明确要求只用上下文 | 添加"仅根据上下文作答"指令 |
+| 查询延迟高 | 重排序候选数量过多 | 将初始检索结果限制在 ≤ 20 个 |
+| 相同问题返回不同结果 | 摄入和查询使用了不同版本的嵌入模型 | 始终使用同一模型版本 |
+
+## 练习
+
+基于一个你自己选择的文本文件，构建一个最小可用的 RAG 脚本：
+
+1. 读取文件，用 `RecursiveCharacterTextSplitter`（chunk_size=500，overlap=50）分块。
+2. 用 `sentence-transformers`（`all-MiniLM-L6-v2`）嵌入文本块并存入 ChromaDB。
+3. 从命令行接收一个问题，检索 Top-5 文本块并打印出来。
+4. 尝试将 `chunk_size` 分别改为 100 和 1000，观察检索结果的相关性如何变化。
+
+## 小结
+
+- **RAG** 分为两个阶段：离线数据摄入（分块 → 嵌入 → 存储）和在线查询（嵌入 → 检索 → 重排序 → 增强 → 生成）。
+- **分块大小**是关键调优参数，需针对你的实际数据进行实验验证。
+- 数据摄入和查询必须使用**同一个嵌入模型**。
+- **重排序**通过交叉编码器进行二次过滤，去除初始相似度搜索中的噪声候选。
+- **增强 Prompt 模板**必须明确指示 LLM 只根据提供的上下文作答，以防训练数据渗入。
+
+## 下一步
+
+在下一章中，我们将探索大规模上下文工程——在 LLM 上下文窗口中管理大型代码库的技术。

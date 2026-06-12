@@ -1,0 +1,226 @@
+{
+  "topic": "AI Coding 101",
+  "target_audience": "Developers who write code daily but have little or no experience with AI-assisted workflows.",
+  "chapters": [
+    {
+      "id": "01-evolution-of-dev",
+      "slug": "evolution-of-dev",
+      "title": "The Evolution of Software Development",
+      "description": "Explore the shift from manual coding to AI agent management and define new human-AI responsibilities.",
+      "category": "foundations",
+      "sidebar_position": 1,
+      "difficulty": "beginner",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "02-how-llms-understand-code",
+      "slug": "how-llms-understand-code",
+      "title": "How LLMs Understand Code",
+      "description": "Learn about tokens, context windows, and why Claude might hallucinate code.",
+      "category": "foundations",
+      "sidebar_position": 2,
+      "difficulty": "beginner",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "03-ai-coding-workflow",
+      "slug": "ai-coding-workflow",
+      "title": "AI Coding Workflow",
+      "description": "Transition from the traditional dev loop to the AI-era loop of planning, implementation, and human approval.",
+      "category": "foundations",
+      "sidebar_position": 3,
+      "difficulty": "beginner",
+      "estimated_minutes": 25
+    },
+    {
+      "id": "04-prompting-for-developers",
+      "slug": "prompting-for-developers",
+      "title": "Prompting for Developers",
+      "description": "Master task, role, and constraint-driven prompts to generate production-ready code with Claude.",
+      "category": "prompt-engineering",
+      "sidebar_position": 1,
+      "difficulty": "beginner",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "05-context-engineering",
+      "slug": "context-engineering",
+      "title": "Context Engineering",
+      "description": "Learn to use memory files and project knowledge to provide Claude with the right technical context.",
+      "category": "prompt-engineering",
+      "sidebar_position": 2,
+      "difficulty": "intermediate",
+      "estimated_minutes": 25
+    },
+    {
+      "id": "06-long-task-decomposition",
+      "slug": "long-task-decomposition",
+      "title": "Long Task Decomposition",
+      "description": "Break down complex SaaS requirements into manageable architectural and implementation steps for AI.",
+      "category": "prompt-engineering",
+      "sidebar_position": 3,
+      "difficulty": "intermediate",
+      "estimated_minutes": 25
+    },
+    {
+      "id": "07-frontend-development",
+      "slug": "frontend-development",
+      "title": "Frontend Development",
+      "description": "Build modern UIs using React, Next.js, and Tailwind CSS assisted by Claude.",
+      "category": "ai-assisted-development",
+      "sidebar_position": 1,
+      "difficulty": "intermediate",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "08-backend-development",
+      "slug": "backend-development",
+      "title": "Backend Development",
+      "description": "Develop robust APIs using FastAPI, Node.js, or Spring Boot with AI assistance.",
+      "category": "ai-assisted-development",
+      "sidebar_position": 2,
+      "difficulty": "intermediate",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "09-database-design",
+      "slug": "database-design",
+      "title": "Database Design",
+      "description": "Use Claude as a database architect to design schemas, write migrations, and optimize queries.",
+      "category": "ai-assisted-development",
+      "sidebar_position": 3,
+      "difficulty": "intermediate",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "10-testing-and-debugging",
+      "slug": "testing-and-debugging",
+      "title": "Testing and Debugging",
+      "description": "Automate unit, integration, and regression tests while using AI for root cause analysis.",
+      "category": "ai-assisted-development",
+      "sidebar_position": 4,
+      "difficulty": "intermediate",
+      "estimated_minutes": 25
+    },
+    {
+      "id": "11-tool-calling",
+      "slug": "tool-calling",
+      "title": "Tool Calling",
+      "description": "Implement function calling and structured outputs to allow Claude to execute real-world actions.",
+      "category": "ai-agents",
+      "sidebar_position": 1,
+      "difficulty": "intermediate",
+      "estimated_minutes": 25
+    },
+    {
+      "id": "12-mcp-overview",
+      "slug": "mcp-overview",
+      "title": "Model Context Protocol (MCP)",
+      "description": "Connect Claude to external systems using MCP servers, resources, and tools.",
+      "category": "ai-agents",
+      "sidebar_position": 2,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "13-multi-agent-systems",
+      "slug": "multi-agent-systems",
+      "title": "Multi-Agent Systems",
+      "description": "Design a collaborative workflow featuring Planner, Worker, and Reviewer agents.",
+      "category": "ai-agents",
+      "sidebar_position": 3,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "14-coding-agents-internals",
+      "slug": "coding-agents-internals",
+      "title": "Coding Agents",
+      "description": "Analyze the internal mechanics of tools like Claude Code and Cursor Agent.",
+      "category": "ai-agents",
+      "sidebar_position": 4,
+      "difficulty": "advanced",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "15-project-saas-app",
+      "slug": "project-saas-app",
+      "title": "Build a SaaS Application",
+      "description": "Apply AI workflows to build a full-stack app with Auth, Billing, and a Dashboard.",
+      "category": "real-projects",
+      "sidebar_position": 1,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "16-project-ai-chat",
+      "slug": "project-ai-chat",
+      "title": "Build an AI Chat App",
+      "description": "Implement a chat application featuring streaming, memory, and RAG.",
+      "category": "real-projects",
+      "sidebar_position": 2,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "17-project-agent-platform",
+      "slug": "project-agent-platform",
+      "title": "Build an Agent Platform",
+      "description": "Create a platform with a workflow engine, tool execution, and knowledge base.",
+      "category": "real-projects",
+      "sidebar_position": 3,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "18-rag-deep-dive",
+      "slug": "rag-deep-dive",
+      "title": "Retrieval Augmented Generation (RAG)",
+      "description": "Implement chunking, embeddings, and re-ranking to give Claude access to private data.",
+      "category": "advanced-topics",
+      "sidebar_position": 1,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "19-context-at-scale",
+      "slug": "context-at-scale",
+      "title": "Context Engineering at Scale",
+      "description": "Manage million-token projects using summarization and compression techniques.",
+      "category": "advanced-topics",
+      "sidebar_position": 2,
+      "difficulty": "advanced",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "20-agent-architecture",
+      "slug": "agent-architecture",
+      "title": "Coding Agent Architecture",
+      "description": "Design the core components of a coding agent: Planner, Memory, and Tool Executor.",
+      "category": "advanced-topics",
+      "sidebar_position": 3,
+      "difficulty": "advanced",
+      "estimated_minutes": 30
+    },
+    {
+      "id": "21-enterprise-ai",
+      "slug": "enterprise-ai",
+      "title": "Enterprise AI Development",
+      "description": "Address cost optimization, security auditing, and private deployment of AI tools.",
+      "category": "advanced-topics",
+      "sidebar_position": 4,
+      "difficulty": "advanced",
+      "estimated_minutes": 20
+    },
+    {
+      "id": "grad-project-ai-agent",
+      "slug": "grad-project-ai-agent",
+      "title": "Graduation Project: Build Your Own AI Coding Agent",
+      "description": "Build a simplified Claude Code clone with CLI, Git integration, and self-review capabilities.",
+      "category": null,
+      "sidebar_position": 1,
+      "difficulty": "advanced",
+      "estimated_minutes": 60
+    }
+  ]
+}

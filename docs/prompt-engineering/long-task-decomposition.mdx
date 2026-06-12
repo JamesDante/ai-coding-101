@@ -1,0 +1,103 @@
+---
+sidebar_position: 3
+title: "Long Task Decomposition"
+description: "Learn how to decompose complex SaaS features into small, manageable tasks that AI can implement reliably without errors."
+---
+
+## Learning Objectives
+
+- Define the criteria for an 'atomic' implementation task
+- Create a sequential roadmap for a complex feature based on technical dependencies
+- Use AI as a technical architect to generate decomposition lists
+- Implement a verification loop to ensure each step is correct before proceeding
+
+## The Failure of Monolithic Prompts
+
+When you ask an AI to "build a complete user authentication system," you are setting yourself up for failure. This approach, known as monolithic prompting, often results in several common issues.
+
+Large requests lead to hallucinations where the AI invents non-existent libraries or APIs. You will also frequently see omitted code, where the LLM inserts comments like `// ... rest of logic here` instead of providing a complete implementation. Finally, complex prompts increase the risk of logical errors that are difficult to debug later.
+
+## Defining Atomic Tasks
+
+To achieve reliable results, you must use "atomic tasks." An atomic task is a unit of work that follows the single-responsibility principle and is fully testable in isolation. 
+
+Instead of asking for an entire feature, break it down into pieces that do exactly one thing.
+
+```markdown title="Comparison: Monolithic vs. Atomic"
+### Monolithic Prompt (Bad)
+"Build a complete billing system with Stripe integration, including database models, API endpoints, and a frontend dashboard."
+
+### Atomic Prompts (Good)
+1. "Create the Prisma schema for a `Subscription` model."
+2. "Implement a Node.js controller to handle Stripe webhooks."
+3. "Create a React component that displays the user's current plan status."
+```
+
+:::warning
+Avoid 'over-decomposition.' If tasks are too small (e.g., creating a single variable), the AI may lose the broader context of why the code is being written, leading to fragmented logic.
+:::
+
+## Mapping Technical Dependencies
+
+The order in which you execute tasks matters. If you attempt to build a frontend component before the underlying API exists, you will encounter errors that force you into constant refactoring.
+
+Follow this standard sequence for decomposition:
+1. **Database Schema**: Define your data structures first.
+2. **Backend Logic/API**: Build the services and endpoints that manipulate that data.
+3. **Frontend Integration**: Create the UI components and connect them to the API.
+4. **Edge Case Handling**: Add validation, error states, and loading indicators.
+
+```markdown title="Implementation Roadmap: User Subscription"
+1. Define `Subscription` and `Plan` tables in PostgreSQL.
+2. Create an Express route `/api/subscribe` that interacts with Stripe.
+3. Build a React `SubscriptionCard` component.
+<0xA0>4. Implement error handling for expired credit cards.
+```
+
+## Using AI as the Architect
+
+You don't have to do all the heavy lifting of decomposition yourself. You can use a "Meta-Prompt" to turn the LLM into a Technical Lead. Instead of asking for code, ask the AI to act as an architect and generate a checklist of implementation steps.
+
+```markdown title="The Architect Meta-Prompt"
+"I want to implement [Feature Name]. Before writing any code, act as a Senior Technical Lead. Analyze the requirements and provide a numbered list of atomic, sequential implementation tasks. Each task must be small enough to be completed in a single prompt and include its technical dependencies."
+```
+
+## The Execution and Verification Loop
+
+The most critical part of decomposition is the verification loop. Never move to the next task until you have verified the current one works perfectly.
+
+The workflow follows a strict cycle:
+1. **Execute**: Run the prompt for the atomic task.
+2. **Verify**: Run tests or manually check the output.
+3. **Feedback**: If an error occurs, feed the error message back to the AI.
+4. **Proceed**: Only move to the next task once the current one is verified.
+
+Skipping this step leads to "error compounding," where a small mistake in step 1 becomes a massive, unfixable bug by step 5.
+
+```bash title="Terminal"
+# Step 1: Run the newly created test
+npm test tests/webhook.test.ts
+
+# Step 2: If it fails, copy the error and paste it to the AI
+# Error: TypeError: Cannot read property 'id' of undefined
+```
+
+:::tip
+Maintain a 'Progress Log' in a separate markdown file. Paste this log into each new prompt so the AI knows exactly which steps of the decomposition are complete and what remains.
+:::
+
+## Exercise
+
+Take a complex feature you are currently working on (e.g., "User Profile Upload") and decompose it into at least four atomic tasks following the dependency mapping rule: Database $\rightarrow$ Backend $\rightarrow$ Frontend $\rightarrow$ Edge Cases. Write these tasks out in a numbered list.
+
+## Summary
+
+- Monolithic prompts lead to hallucinations, omitted code, and logic errors.
+- Atomic tasks are single-responsibility units of work that are easy to test.
+- Always follow the dependency chain: Schema $\rightarrow$ API $\rightarrow$ UI.
+- Use Meta-Prompting to let the AI help you architect your task list.
+- Implement a verification loop to prevent error compounding.
+
+## What's Next
+
+In the next chapter, we'll explore AI-assisted Frontend Development.

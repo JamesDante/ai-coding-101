@@ -1,0 +1,138 @@
+---
+sidebar_position: 3
+title: "数据库设计"
+description: "学习如何利用 Claude 将复杂的业务需求转化为优化的 SQL 模式和生产就绪的迁移脚本。"
+---
+
+## 学习目标
+
+*   使用 AI prompt 将业务需求转化为逻辑数据模型。
+*   为关系型数据库生成规范化的 SQL 数据定义语言 (DDL)。
+*   通过 AI 建议的索引策略优化数据库性能。
+*   为模式演进创建版本化迁移脚本。
+
+## 从业务逻辑到逻辑模式
+
+设计数据库始于对业务领域的理解。你无需手动映射每一张表，而是可以向 AI 助手（Claude、GPT-4o 或 Cursor）提供详细的业务逻辑描述。目标是引导它生成一个结构化的实体关系 (ER) 描述，其中定义了实体、属性以及关系的性质，例如一对一 (1:1)、一对多 (1:N) 或多对多 (N:M)。
+
+为了获得最佳结果，请避免模糊的描述。应当描述用户如何与产品交互、订单是如何处理的，以及支付如何与发货关联。
+
+```text title="Prompt：电商领域建模"
+我正在为一个多商家电商平台设计数据库。
+请识别核心实体及其关系。
+
+该系统必须支持：
+1. 商家（Vendor）可以上架多个商品。
+2. 顾客（Customer）可以下多个订单。
+3. 每个订单可以包含来自不同商家的多个商品。
+4. 每个订单只有一个收货地址，但顾客可以保存多个地址。
+5. 需要跟踪每个订单的状态（如：待处理、已发货、已送达）。
+
+请提供实体的结构化列表、各实体的主要属性，以及它们之间关系的性质（1:1、1:N 或 N:M）。
+```
+
+## 生成规范化的 SQL DDL
+
+一旦你拥有了逻辑模型，就可以指示 LLM 生成物理 SQL 数据定义语言 (DDL)。你应该指定目标数据库方言——例如 PostgreSQL、MySQL 或 SQLite——以确保语法正确。
+
+在此过程中使用 AI 助手的一个关键优势是它能够自动应用规范化规则。你可以明确要求 API 确保模式符合第三范式 (3NF)，从而减少数据冗余并提高完整性。
+
+```sql title="schema.sql"
+-- Generated PostgreSQL Schema
+
+CREATE TABLE vendors (
+    vendor_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    vendor_id INTEGER REFERENCES vendors(vendor_id),
+    name VARCHAR(255) NOT NULL,
+    price DECIMAL(12, 2) NOT NULL,
+    stock_quantity INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE customers (
+    customer_id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE order_items (
+    order_item_id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(order_id),
+    product_id INTEGER REFERENCES products(product_id),
+    quantity INTEGER NOT NULL,
+    price_at_purchase DECIMAL(12, 2) NOT NULL
+);
+```
+
+:::warning
+AI 偶尔可能会建议与您的特定数据库版本不兼容或通用的 SQL 语法。在将其应用于生产环境之前，请务必在暂存环境中验证生成的 DDL。
+:::
+
+## AI 驱动的性能优化
+
+功能完备的模式并不一定意味着高性能。随着数据量的增长，查询延迟可能会增加。你可以使用 AI 助手根据预期的查询模式来分析你的模式，并建议诸如 B-tree 或 GIN 索引、合适的数据类型或分区策略等优化方案。
+
+```sql title="optimization.sql"
+-- Optimization: Adding indexes for frequent lookup patterns
+
+-- Speed up product lookups by vendor
+CREATE INDEX idx_products_vendor_id ON products(vendor_id);
+
+-- Speed up order retrieval for specific customers
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+
+-- Optimize searching for orders by status (useful for dashboarding)
+CREATE INDEX idx_orders_status ON orders(status);
+
+-- Composite index for order items to speed up order detail retrieval
+CREATE INDEX idx_order_items_order_product ON order_items(order_id, product_id);
+```
+
+:::tip
+在请求优化时，请向 AI 提供您预期会频繁运行的实际查询示例；这能让 AI 基于真实的使用场景而非理论模式来建议索引。
+:::
+
+## 自动化模式迁移
+
+数据库模式是“活的”有机体。随着功能的增加，你必须在不丢失现有数据的情况下演进模式。你可以提示 AI 生成 "UP"（应用更改）和 "DOWN"（撤销更改）迁移脚本。
+
+在执行诸如重命名列或更改数据类型等复杂操作时，请指示 AI 包含数据保留逻辑，以确保在转换过程中不会丢失任何信息。
+
+```sql title="migration_v2.sql"
+-- UP: Add discount_code to orders and migrate existing data if necessary
+ALTER TABLE orders ADD COLUMN discount_code VARCHAR(50);
+
+-- DOWN: Revert the change
+ALTER TABLE orders DROP COLUMN discount_code;
+```
+
+## 练习
+
+为一个“图书馆管理系统”创建一个迁移脚本。
+1. 从一个简单的 `books` 表开始（包含 id, title, author）。
+2. 使用 AI 助手生成一个 "Up" 迁移，添加 `published_year` 列和 `isbn` 列。
+3. 确保 "Down" 迁移能够正确删除这些列。
+
+## 小结
+
+*   使用详细的业务描述来构建逻辑 ER 模型。
+*   生成 DDL 时指定数据库方言以确保兼容性。
+*   利用 AI 实现 3NF 规范化和性能索引优化。
+*   通过生成版本化的 Up/Down 迁移脚本来实现模式自动化演进。
+
+## 下一步
+
+在下一章中，我们将探索 AI 辅助测试与调试。

@@ -1,0 +1,164 @@
+---
+sidebar_position: 1
+title: "构建 SaaS 应用程序"
+description: "学习利用 AI 规划和迭代开发，构建一个包含身份验证和计费功能的完整 SaaS 应用程序。"
+---
+
+## 学习目标
+
+- 使用 AI 生成的技术规范来构建全栈 SaaS 应用程序。
+- 通过 AI 脚手架实现安全的身份验证流程。
+- 集成第三方计费提供商（例如 Stripe）进行订阅管理。
+- 基于 AI 规划的数据模型构建动态用户仪表板。
+- 执行“计划-编码-验证”的迭代循环，以优化复杂的应用程序功能。
+
+## AI 驱动的架构规划
+
+在编写任何代码之前，使用 AI 生成一份全面的产品需求文档 (PR D) 和技术架构。稳固的基础要求在开始实现之前定义好数据模式 (Data Schema)、API 端点和状态管理策略。这可以避免在开发周期后期进行昂贵的重构。
+
+```markdown title="system_prompt.md"
+扮演高级软件架构师的角色。为一款允许用户 [插入核心功能] 的 SaaS 应用程序生成详细的技术规范。 
+
+该规范必须包含：
+1. 详细的数据模式 (PostgreSQL/Prisma 格式)。
+2. API 端点 (REST 或 GraphQL) 以及请求/响应结构。
+3. 身份验证与授权流程。
+4. 订阅层级定义和权限逻辑。
+```
+
+:::tip
+在生成架构时，在开始编码之前，要求 AI “批判性地审视其计划中潜在的瓶颈”。这通常能揭示身份验证或计费流程中缺失的边缘情况。
+:::
+
+## 实现安全身份验证
+
+通过集成 Clerk 或 NextAuth 等提供商，使用 AI 来构建身份验证逻辑的脚手架。你可以提示 AI 创建受保护的路由包装器 (protected route wrappers)，在渲染敏感内容之前检查是否存在活跃会话，从而确保你的应用程序从一开始就是安全的。
+
+```typescript title="middleware.ts"
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { authMiddleware } from './auth-config';
+
+export default authMiddleware((req) => {
+  const isDashboardRoute = req.nextUrl.pathname.arg.startsWith('/dashboard');
+
+  if (isDashboardRoute && !req.auth) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+## 集成计费与订阅逻辑
+
+实现支付流程需要处理 Stripe 结账会话 (checkout sessions) 和 Webhook。使用 AI 生成一个监听 `checkout.session.completed` 事件的 Webhook 处理程序，从而允许你自动在数据库中更新用户的最新订阅状态。
+
+```typescript title="api/webhooks/stripe.ts"
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { db } from '@/lib/db';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const sig = req.headers.get('stripe-signature')!;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+  } catch (err) {
+    return NextResponse.json({ error: 'Webhook Error' }, { status: 400 });
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await db.user.update({
+      where: { email: session.customer_details?.email! },
+      data: { subscriptionTier: 'pro' },
+    });
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+:::warning
+切勿提示 AI 在你的代码中直接处理原始信用卡数据；务必始终使用像 Stripe 或 Lemon Squeezy 这样的安全提供商，以保持 PCI 合规性。
+:::
+
+## 构建用户仪表板 UI
+
+一旦后端逻辑准备就绪，就可以根据之前定义的数据模型，提示 AI 生成复杂的 UI 组件。你可以创建一个响应式的仪表板，根据用户处于免费计划还是 Pro 计划，动态地切换功能或显示不同的内容。
+
+```tsx title="Dashboard.tsx"
+import { useUser } from '@/hooks/use-user';
+
+export default function Dashboard() {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) return <div>加载中...</div>;
+
+  return (
+    <div className="p-8">
+      <h1>欢迎，{user.name}</h1>
+      <p>当前计划：<span className="capitalize">{user.subscriptionTier}</span></p>
+
+      <div className="mt-6 grid gap-4">
+        <FeatureCard title="基础分析" enabled={true} />
+        <FeatureCard
+          title="高级 AI 洞察"
+          enabled={user.subscriptionTier === 'pro'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeatureCard({ title, enabled }: { title: string; enabled: boolean }) {
+  return (
+    <div className={`p-4 border rounded ${enabled ? 'opacity-100' : 'opacity-50'}`}>
+      {title} {enabled ? '✅' : '🔒'}
+    </div>
+  );
+}
+```
+
+## 端到端示例：从提示词到生产环境
+
+本指南演示了如何使用 AI 助手，将一个项目从最初的想法迭代演进为功能完备的特性。
+
+```markdown title="project_evolution.md"
+### 第 1 步：初始 PRD 提示词
+**用户：** "为一款具有 Pro 层级的任务列表管理 SaaS 应用生成一份 PRD。"
+**AI：** [生成模式、端点和身份验证需求]
+
+### 第 2 步：实现功能
+**用户：** "基于提供的模式，编写 'Task' 和 'Subscription' 的 Prisma 模型。"
+**AI：** [输出 `schema.prisma` 代码]
+
+### 第 3 步：优化逻辑
+**用户：** "现在，创建一个 Next.js API 路由来处理 Stripe Webhook，以更新订阅层级。"
+**AI：** [输出 Webhook 处理程序代码]
+```
+
+## 练习
+
+为 AI 助手编写一个新的提示词，要求它为“基于订阅的通讯 (Newsletter)”服务设计数据库模式。该模式必须包含 `Users`、`Newsletters` 和 `Subscriptions` 表，并确保只有状态为 'active' 的用户才能访问高级内容。
+
+## 小结
+
+- 在编写任何代码之前，通过 PRD 使用 AI 来构建应用程序架构。
+- 利用 AI 脚手架来处理身份验证中间件等复杂逻辑。
+- 通过提示生成 Webhook 处理程序，实现订阅管理的自动化。
+- 构建能够响应用户数据模型和计费状态的动态 UI。
+
+## 下一步
+
+在下一章中，我们将构建一个 AI 聊天应用——添加对话界面、流式响应和消息历史。

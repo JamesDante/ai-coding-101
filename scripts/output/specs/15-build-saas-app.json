@@ -1,0 +1,78 @@
+{
+  "chapter_id": "15-build-saas-app",
+  "title": "Build a SaaS Application",
+  "slug": "build-saas-app",
+  "sidebar_position": 1,
+  "category": "real-projects",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Learn to leverage AI planning and iterative development to build a complete SaaS application with authentication and billing.",
+  "learning_objectives": [
+    "Architect a full-stack SaaS application using AI-generated technical specifications",
+    "Implement secure user authentication flows via AI scaffolding",
+    "Integrate a third-party billing provider (e.g., Stripe) for subscription management",
+    "Build a dynamic user dashboard based on an AI-planned data model",
+    "Execute an iterative 'Plan-Code-Verify' loop to refine complex application features"
+  ],
+  "prerequisites": [
+    "Basic proficiency in a full-stack framework (e.g., Next.js, Remix)",
+    "Understanding of environment variables and API keys",
+    "Completion of previous chapters on AI prompting and iterative debugging"
+  ],
+  "sections": [
+    {
+      "heading": "AI-Driven Architecture Planning",
+      "content_brief": "Explain how to use the AI to generate a comprehensive Product Requirements Document (PRD) and technical architecture. Focus on defining the data schema, API endpoints, and state management before writing any code.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A sample system prompt used to generate a detailed technical specification for a SaaS app."
+    },
+    {
+      "heading": "Implementing Secure Authentication",
+      "content_brief": "Guide the reader through using AI to scaffold authentication logic. Cover the integration of an auth provider (like Clerk or NextAuth) and how to prompt the AI to create protected route wrappers.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "Implementation of a middleware layer for protecting SaaS dashboard routes."
+    },
+    {
+      "heading": "Integrating Billing and Subscription Logic",
+      "content_brief": "Detail the process of using AI to implement payment flows. Focus on creating Stripe checkout sessions, handling webhooks for subscription updates, and syncing billing status with the database.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A webhook handler that updates user subscription status in the database upon successful payment."
+    },
+    {
+      "heading": "Building the User Dashboard UI",
+      "content_brief": "Demonstrate how to prompt AI for complex UI components based on the previously defined data model. Focus on creating a responsive dashboard that reflects the user's current subscription tier.",
+      "has_code_example": true,
+      "code_language": "tsx",
+      "code_context": "A dynamic dashboard component that toggles features based on the user's billing plan."
+    },
+    {
+      "heading": "End-to-End Example: From Prompt to Production",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (with actual values/messages) to final output. This covers the entire flow from initial PRD prompt to a deployed, functional application.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "A sequence of prompts and AI responses showing the iterative evolution of the project."
+    }
+  ],
+  "key_terms": [
+    "PRD (Product Requirements Document)",
+    "Webhook",
+    "Subscription Tiering",
+    "Protected Routes",
+    "Iterative Refinement"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Never prompt the AI to handle raw credit card data directly in your code; always use a secure provider like Stripe or Lemon Squeezy to maintain PCI compliance."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_1",
+      "content": "When generating the architecture, ask the AI to 'critique its own plan for potential bottlenecks' before you start coding. This often reveals missing edge cases in the auth or billing flow."
+    }
+  ]
+}

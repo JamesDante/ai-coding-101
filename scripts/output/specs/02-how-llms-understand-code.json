@@ -1,0 +1,66 @@
+{
+  "chapter_id": "02-how-llms-understand-code",
+  "title": "How LLMs Understand Code",
+  "slug": "how-llms-understand-code",
+  "sidebar_position": 2,
+  "category": "foundations",
+  "difficulty": "beginner",
+  "estimated_minutes": 20,
+  "description": "Learn how tokenization and context windows influence AI code generation and why these mechanisms lead to hallucinations.",
+  "learning_objectives": [
+    "Explain the difference between characters and tokens in source code",
+    "Identify the limitations of a model's context window when processing large files",
+    "Relate probabilistic token prediction to common coding hallucinations"
+  ],
+  "prerequisites": [
+    "Basic familiarity with any programming language"
+  ],
+  "sections": [
+    {
+      "heading": "Tokens: The Atoms of AI",
+      "content_brief": "Explain that LLMs do not read code as characters or lines, but as 'tokens' (chunks of text). Discuss how common keywords are single tokens while rare variable names may be split into multiple tokens.",
+      "has_code_example": true,
+      "code_language": "javascript",
+      "code_context": "A snippet showing a line of code and a visual representation of how it is broken into tokens."
+    },
+    {
+      "heading": "The Context Window Limit",
+      "content_brief": "Define the context window as the maximum amount of text the model can 'keep in mind' at once. Explain what happens when a codebase exceeds this limit, including truncation and loss of architectural awareness.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Probabilistic Prediction vs. Logical Execution",
+      "content_brief": "Contrast how a compiler deterministically parses code versus how an LLM probabilistically predicts the next token. Explain that the AI is predicting 'what looks right' based on training data, not executing logic in a sandbox.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "An example of code that looks syntactically perfect but contains a logical flaw that a human would catch but an LLM might predict as 'likely'."
+    },
+    {
+      "heading": "The Root of Hallucinations",
+      "content_brief": "Connect token prediction to hallucinations. Explain why models often invent plausible-sounding API methods or library functions by blending patterns from similar libraries.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A demonstration of a 'hallucinated' method call that follows the naming convention of a real library but does not actually exist."
+    }
+  ],
+  "key_terms": [
+    "Tokenization",
+    "Context Window",
+    "Hallucination",
+    "Probabilistic Prediction"
+  ],
+  "admonitions": [
+    {
+      "type": "note",
+      "placement": "after_section_1",
+      "content": "Different models use different tokenizers. For example, a piece of code might be 50 tokens in GPT-4 but 60 tokens in Claude."
+    },
+    {
+      "type": "warning",
+      "placement": "after_section_4",
+      "content": "Because LLMs predict patterns rather than verify logic, you must always treat AI-generated code as a 'draft' that requires compilation and testing."
+    }
+  ]
+}

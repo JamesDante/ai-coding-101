@@ -1,0 +1,78 @@
+---
+sidebar_position: 1
+title: "软件开发的演进"
+description: "了解从手动编码到 AI Agent 编排的转变，以及开发者角色的演变。"
+---
+
+## 学习目标
+
+- 对比传统的手动编码与 AI 辅助开发工作流。
+- 区分 AI Copilot（助手）与 AI Agent（自主执行器）。
+- 识别开发者职责从语法编写者向系统编入编排者的转变。
+
+## 手动编码时代
+
+在传统的开发工作流中，你大部分时间都花在查阅文档和 Stack Overflow 上。你需要手动编写样板代码（boilerplate code），并进行繁琐的手动调试。
+
+这个时代带来了很高的认知负荷（Cognitive Load）。开发者必须记忆复杂的语法，并在各种库中寻找 API。每一个新框架都需要学习一套全新的规则，这会减慢初始开发阶段的速度。
+
+## AI Copilot 的崛起
+
+第一次重大转变带来了“加强版自动补全”。由大语言模型（LLM）驱动的助手（通常被称为 AI Copilot）可以通过根据你的注释建议代码行或整个函数，从而减少开发摩擦。
+
+你不再需要输入每一个字符，只需提供一个提示，助手就会完成逻辑实现。这让你能够更多地关注实现细节，而不是语法本身。
+
+```javascript title="utils.js"
+// 手动方式：你需要编写每一行逻辑
+function formatDate(date) {
+  return date.toISOString().split('T')[0];
+}
+
+// AI Copilot 方式：你写下注释，它会建议实现方案
+// Function to format date as YYYY-MM-DD
+const formatDate = (date) => { ... } // IDE 会为你自动补全
+```
+
+## 迈向 AI Agent 时代
+
+我们现在正从 Copilot 迈向 AI Agent 时代。Copilot 需要等待你的输入，而 AI Agent 则可以自主地规划、执行并迭代任务。
+
+Agent 不仅仅是建议文本；它们可以与你的文件系统交互，在终端（terminal）中运行命令，甚至使用浏览器来验证网页内容。它们通过编排（Orchestration）来运作——即管理多个步骤以达成目标。
+
+```markdown title="agent_prompt.md"
+# Feature Request: Add User Authentication
+
+Please implement a basic JWT authentication flow.
+1. Create a login route in the Express app.
+2. Add a middleware to verify tokens.
+3. Update the README with instructions on how to test it.
+```
+
+:::note
+虽然 Agent 可以自主编写代码，但它们缺乏业务上下文和直觉。开发者的角色正从“如何编写这段代码”转变为“究竟应该构建什么以及为什么”。
+:::
+
+## 开发者角色的重新定义
+
+随着 AI 接管了编码中的“编写”部分，你的职责正在发生变化。你正从一个语法编写者转变为系统编排者（system orchestrator）。你的主要任务将涉及代码审查、系统架构设计以及验证输出是否符合需求。
+
+这要求你关注批判性思维、安全审计和高层级系统设计，而不仅仅是精通语法。你成为了“人机回圈”（Human-in-the-loop, HITL）中的关键环节，负责确保 AI 的输出既安全又可用。
+
+:::warning
+过度依赖 AI 生成而缺乏严格审查，可能会导致“幻觉”产生的 bug 或安全漏洞，这些问题往往比手动编写的代码更难调试。
+:::
+
+## 练习
+
+找出一个你目前在 IDE 中执行的重复性任务（例如编写单元测试的样板代码）。写下 AI Agent 如何通过将其分解为三个明确步骤（规划、执行和验证）来处理该任务。
+
+## 小结
+
+- 传统编码高度依赖于手动记忆语法和寻找 API。
+- AI Copilot 作为智能助手，能够提供代码片段建议。
+- AI Agent 是自主执行器，能够与你的开发环境进行交互。
+- 现代开发者的角色侧重于编排、架构和验证。
+
+## 下一步
+
+既然你已经了解了整体概况，让我们在 下一章 中深入学习第一个实用工具。

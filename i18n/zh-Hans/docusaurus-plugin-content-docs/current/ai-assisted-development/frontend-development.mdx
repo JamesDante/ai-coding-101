@@ -1,0 +1,198 @@
+---
+sidebar_position: 1
+title: "前端开发"
+description: "学习使用 Claude 和 Tailwind CSS 快速构建原型及响应式 React 组件。"
+---
+
+## 学习目标
+
+- 使用结构化 AI prompt 生成高保真 UI 组件
+- 通过与 LLM 的迭代优化来应用 Tailwind CSS utility classes
+- 在 AI 生成的 React 组件中实现交互式状态逻辑
+- 针对移动端响应式和无障碍性优化 AI 生成的布局
+
+## 定义组件需求
+
+UI 的质量完全取决于初始指令的清晰度。在使用 AI 辅助工具（Claude、GPT-4o、Cursor 等）时，避免使用像"做一个定价表"这样模糊的请求。相反，应使用一个 "specification prompt"（规范 Prompt），明确定义组件的用途、视觉风格、所需的 props 以及技术约束。
+
+详细的规范可以减少后期大规模重写的需求。你应该明确提到技术栈（React 和 Tailwind CSS），并描述理想的美学风格，例如 "minimalist"（极简）、"glassmorphism"（玻璃拟态）或 "high-density"（高密度）。
+
+```text title="specification.txt"
+使用 Tailwind CSS 创建一个定价卡片 (Pricing Card) 的 React 组件。 
+
+需求：
+- 三个层级：基础版 (Basic)、专业版 (Pro) 和企业版 (Enterprise)。
+- 视觉风格：现代、简洁，带有细微的边框和柔和的阴影。
+- 特性：在 Pro 层级上添加一个 "最受欢迎" (Most Popular) 徽章。
+- Props：接受一个字符串数组作为特性列表。
+- 约束：仅使用标准的 Tailwind utility classes。
+```
+
+## 生成初始 UI 草案
+
+有了规范之后，使用 AI 生成第一次迭代。这个阶段的重点是结构正确性。检查生成的 JSX，确保 HTML 元素具有语义化，并且 Tailwind classes 符合你的设计意图。
+
+```tsx title="PricingCard.tsx"
+import React from 'react';
+
+interface FeatureProps {
+  features: string[];
+}
+
+const PricingCard = ({ features }: FeatureProps) => {
+  return (
+    <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+      <h3 className="text-xl font-bold text-gray-900">专业版 (Pro Plan)</h3>
+      <p className="mt-4 text-gray-600">$29/月</p>
+      <ul className="mt-6 space-y-4">
+        {features.map((feature, index) => (
+          <li key={index} className="flex items-center text-sm text-gray-500">
+            <span className="mr-2 text-green-500">✓</span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <button className="mt-8 w-full py-2 px-4 bg-blue-600 text-white rounded-md font-medium">
+        立即开始
+      </button>
+    </div>
+  );
+};
+
+export default PricingCard;
+```
+
+:::warning
+AI 偶尔可能会幻觉出不存在的 Tailwind classes 或使用过时的语法。请务必根据官方 Tailwind CSS 文规验证生成的 classes。
+:::
+
+## 迭代优化与润色
+
+初稿很少是完美的。与其要求全文重写，不如提供针对性的反馈来优化特定元素。这种 "反馈循环" (feedback loop) 允许你逐步调整间距、字体或配色方案。
+
+例如，如果组件感觉太拥挤，可以要求 AI "增加垂直内边距并在项目之间增加更多呼吸感"。
+
+```tsx title="RefinedPricingCard.tsx"
+import React from 'react';
+
+const RefinedPricingCard = () => {
+  return (
+    <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-lg">
+      <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">专业版 (Pro Plan)</h3>
+      <p className="mt-2 text-lg text-slate-600">$29/月</p>
+      <ul className="mt-8 space-y-5">
+        {['无限项目', '优先支持', '自定义域名'].map((feature) => (
+          <li key={feature} className="flex items-center text-base text-slate-700">
+            <span className="mr-3 flex-shrink-0 h-5 w-5 text-blue-500">
+              {/* 图标占位符 */}
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            </span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <button className="mt-10 w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors">
+        立即开始
+      </button>
+    </div>
+  );
+};
+
+export default RefinedPricingCard;
+```
+
+:::tip
+如果你有草图或设计截图，可以将其上传给支持多模态的 AI（如 Claude 或 GPT-4o）。多模态 Prompting 能显著提高 AI 准确匹配视觉布局的能力。
+:::
+
+## 添加交互与状态
+
+当你添加逻辑时，UI 组件就变成了功能特性。你可以提示 AI 集成 React hooks，如 `useState` 或 `useEffect`。你的 Prompt 应集中在特定行为上，例如处理月度与年度账单的切换，或管理表单输入状态。
+
+```tsx title="InteractivePricingCard.tsx"
+import React, { useState } from 'react';
+
+const InteractivePricingCard = () => {
+  const [isYearly, setIsYearly] = useState(false);
+
+  return (
+    <div className="p-6 bg-white rounded-xl shadow-md">
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-sm font-medium text-gray-500">账单周期</span>
+        <button 
+          onClick={() => setIsYearly(!isYearly)}
+          className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors"
+        >
+          <span className={`${isYearly ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+        </button>
+      </div>
+      
+      <h3 className="text-lg font-bold">专业版 (Pro Plan)</h3>
+      <p className="text-2xl font-bold text-blue-600">
+        {isYearly ? '$290' : '$29'}<span className="text-sm text-gray-500 font-normal">/年</span>
+      </p>
+    </div>
+  );
+};
+
+export default InteractivePricingCard;
+```
+
+## 确保响应式与无障碍性
+
+最后一步是确保你的组件在任何设备上对每个人都可用。使用 Tailwind 的响应式修饰符（例如 `md:`, `lg:`）来调整不同屏幕尺寸下的布局。此外，提示 AI 添加 ARIA labels 和键盘友好属性，以符合无障碍标准。
+
+```tsx title="AccessiblePricingCard.tsx"
+import React from 'react';
+
+const AccessiblePricingCard = () => {
+  return (
+    <div className="flex flex-col md:flex-row gap-6 p-4">
+      <section 
+        className="w-full md:w-1/2 p-6 bg-white border rounded-lg focus-within:ring-2 focus-within:ring-blue-500"
+        aria-labelledby="card-title"
+      >
+        <h3 id="card-title" className="text-xl font-bold">标准版 (Standard Plan)</h3>
+        <p className="mt-2 text-gray-600">非常适合刚起步的个人用户。</p>
+        <button 
+          aria-label="选择标准版方案"
+          className="mt-4 w-full py-2 bg-gray-800 text-white rounded hover:bg-black transition-colors"
+        >
+          选择方案
+        </button>
+      </section>
+
+      <section 
+        className="w-full md:w-1/2 p-6 bg-blue-50 border border-blue-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500"
+        aria-labelledby="card-title-pro"
+      >
+        <h3 id="card-title-pro" className="text-xl font-bold text-blue-900">专业版 (Pro Plan)</h3>
+        <p className="mt-2 text-blue-800">为成长中的团队提供高级功能。</p>
+        <button 
+          aria-label="选择专业版方案"
+          className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          选择方案
+        </button>
+      </section>
+    </div>
+  );
+};
+
+export default AccessiblePricingCard;
+```
+
+## 练习
+
+创建一个 "用户个人资料卡片" (User Profile Card) 组件。使用详细的规范 Prompt 来定义其外观（例如：头像、姓名、简介和 "关注" 按钮）。生成后，通过迭代优化，使用 `useState` 添加深色模式切换功能，并确保布局在移动设备上使用 Tailwind breakpoints 时能够垂直堆叠。
+
+## 小结
+
+- 从高细节的规范 Prompt 开始，以减少重复工作。
+- 使用迭代反馈循环进行视觉润色，而不是要求全文重写。
+- 通过提示特定的功能逻辑来集成 React hooks。
+- 始终验证 Tailwind classes，并实现响应式、无障碍的 HTML。
+
+## 下一步
+
+在下一章中，我们将探索 AI 辅助后端开发。

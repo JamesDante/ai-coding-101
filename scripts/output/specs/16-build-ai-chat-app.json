@@ -1,0 +1,77 @@
+{
+  "chapter_id": "16-build-ai-chat-app",
+  "title": "Build an AI Chat App",
+  "slug": "build-ai-chat-app",
+  "sidebar_position": 2,
+  "category": "real-projects",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Build a production-ready AI chat application featuring real-time streaming, conversation memory, and RAG integration using Claude's API.",
+  "learning_objectives": [
+    "Implement a streaming response interface to reduce perceived latency",
+    "Develop a conversation memory system to maintain multi-turn context",
+    "Integrate a Retrieval Augmented Generation (RAG) pipeline for grounding responses in external data",
+    "Configure Claude's API for high-performance chat interactions"
+  ],
+  "prerequisites": [
+    "Basic proficiency in JavaScript/TypeScript or Python",
+    "Understanding of REST APIs and environment variable management",
+    "Knowledge of basic prompt engineering principles"
+  ],
+  "sections": [
+    {
+      "heading": "System Architecture: The Chat Pipeline",
+      "content_brief": "Explain the high-level data flow from user input to final output. Detail how the system orchestrates retrieval, memory injection, and streaming delivery.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Implementing Real-time Streaming",
+      "content_brief": "Demonstrate how to use Claude's streaming API to send chunks of text to the client as they are generated. Cover the implementation of Server-Sent Events (SSE) or a similar streaming transport.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "Implementing an API route that streams Claude's response chunks to a frontend client."
+    },
+    {
+      "heading": "Managing Conversation Memory",
+      "content_brief": "Explain the difference between short-term and long-term memory. Implement a sliding window buffer or summary-based approach to keep the conversation context within token limits.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A utility class for managing chat history and pruning old messages based on token count."
+    },
+    {
+      "heading": "Adding RAG Capabilities",
+      "content_brief": "Show how to retrieve relevant document snippets from a knowledge base and inject them into the system prompt. Explain the 'Context' block pattern used to ground the AI.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "A function that queries a vector store and formats retrieved documents for the LLM prompt."
+    },
+    {
+      "heading": "End-to-End Example: Full Chat Cycle",
+      "content_brief": "A concrete step-by-step walkthrough showing the full sequence from user input through each intermediate step (retrieval, memory merging, API call) to final output.",
+      "has_code_example": true,
+      "code_language": "typescript",
+      "code_context": "The complete integrated logic combining RAG, Memory, and Streaming in a single request handler."
+    }
+  ],
+  "key_terms": [
+    "Streaming API",
+    "RAG (Retrieval Augmented Generation)",
+    "Conversation Buffer",
+    "Token Window",
+    "Server-Sent Events (SSE)"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_3",
+      "content": "Be careful with unbounded memory growth; always implement a pruning strategy or summary mechanism to avoid hitting the model's maximum context window."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_4",
+      "content": "To improve RAG quality, try adding 'citations' to your system prompt, instructing Claude to reference specific documents when answering."
+    }
+  ]
+}

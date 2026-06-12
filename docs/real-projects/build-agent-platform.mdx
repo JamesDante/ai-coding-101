@@ -1,0 +1,260 @@
+---
+sidebar_position: 3
+title: "Build an Agent Platform"
+description: "Build a custom workflow engine to orchestrate AI agents, manage state, and execute tools."
+---
+
+## Learning Objectives
+
+- Design a state management system for agent memory.
+- Implement a tool execution dispatcher to bridge LLM calls and code.
+- Construct an autonomous orchestration loop (Think-Act-Observe).
+- Build a complete end-to-end agentic workflow from scratch.
+
+## Architecture of an Agent Platform
+
+Most LLM implementations follow a linear chain: User Input → Prompt → LLM → Output. While effective for simple tasks, chains cannot recover from errors or use external tools dynamically.
+
+An agent platform uses an **agentic loop**. Instead of a single pass, the system enters a cycle where the LLM can "reason" about what to do next and "act" by calling a tool. This is known as the **ReAct (Reason + Act) pattern**. The architecture consists of three core pillars:
+
+1.  **The Brain (LLM):** Decides which action to take based on current observations.
+2.  **The Memory (State Manager):** Stores the history of thoughts, actions, and observations.
+3.  **The Hands (Tool Dispatcher):** Executes the actual code or API calls requested by the brain.
+
+```
+── AGENT PLATFORM ARCHITECTURE ──────────────────────────────────────
+  User Input
+       ↓
+  ┌──── LLM (Brain) ───────────────────────────────────────────────┐
+  │  Reads:    State Manager (message history + variables)         │
+  │  Outputs:  tool_call {"name": ..., "arguments": {...}}         │
+  │        OR  final answer text (no tool_calls)                   │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ tool_call
+  ┌──── Tool Dispatcher (Hands) ───────────────────────────────────┐
+  │  Registry: {calculator, search, file_read, …}                  │
+  │  Executes: tools[name](**arguments) → returns observation      │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ observation written back to State Manager
+  ─────── loop until tool_calls is empty ──────────────────────────
+       ↓
+  Final Answer returned to user
+```
+
+## Designing the State Manager
+
+The State Manager is the agent's short-term memory. It must track the conversation history so that when a tool returns a result, the LLM understands the context of that result. We implement this as a class that manages a list of messages and a key-value store for persistent variables.
+
+```python title="state_manager.py"
+class State:
+    def __init__(self):
+        # Stores the conversation history (messages)
+        self.messages = []
+        # Stores arbitrary data like search results or calculation outputs
+        self.variables = {}
+
+    def add_message(self, role: str, content: str):
+        self.messages.append({"role": role, "content": content})
+
+    def set_variable(self, key: str, value: any):
+        self.variables[key] = value
+
+    def get_context(self):
+        """Returns the formatted history for the LLM."""
+        return self.messages
+```
+
+:::tip
+For production platforms, consider using a database like Redis or PostgreSQL for state management instead of in-memory objects to allow for persistence across sessions.
+:::
+
+## The Tool Dispatcher
+
+The Tool Dispatcher acts as the bridge between the LLM's text-based instructions and your Python code. It maintains a registry of available functions. When the LLM outputs a specific tool call, the dispatcher finds the matching function and executes it.
+
+```python title="dispatcher.py"
+class ToolRegistry:
+    def __init__(self):
+        self.tools = {}
+
+    def register(self, func):
+        """Decorator to register a function as a tool."""
+        self.tools[func.__name__] = func
+        return func
+
+    def execute(self, tool_name: str, arguments: dict):
+        if tool_name not in self.tools:
+            return f"Error: Tool '{tool_name}' not found."
+        
+        try:
+            # Dynamically call the registered function with provided arguments
+            return self.tools[tool_name](**arguments)
+        except Exception as e:
+            return f"Error executing tool: {str(e)}"
+```
+
+:::warning
+Always implement a maximum iteration limit (e.g., 10 loops) in your orchestration engine to prevent infinite loops and runaway API costs if the agent gets stuck.
+:::
+
+## Implementing the Orchestration Loop
+
+The orchestration loop is the "heartbeat" of the platform. It follows a continuous cycle:
+1.  **Think:** Send the current state to the LLM.
+2.  **Act:** Parse the LLM's response for tool calls.
+3.  **Observe:** Execute the tool via the dispatcher and capture the output.
+4.  **Repeat:** Feed the observation back into the state and loop again until a final answer is reached.
+
+```python title="orchestrator.py"
+def run_agent_loop(llm_client, registry, state, max_steps=5):
+    for _ in range(max_steps):
+        # 1. Think: get LLM response from current state
+        response = llm_client.chat(state.get_context())
+
+        # Final answer — no tool calls requested
+        if not response.tool_calls:
+            state.add_message("assistant", response.content)
+            break
+
+        # 2. Act & 3. Observe — tool_calls is a list of dicts
+        for tool_call in response.tool_calls:
+            result = registry.execute(
+                tool_call["name"],
+                tool_call["arguments"],
+            )
+            state.add_message("tool", str(result))
+            state.set_variable(tool_call["name"], result)
+
+    return state.messages[-1]["content"]
+```
+
+## End-to-End Example: A Research Agent
+
+In this example, we combine all components to create a functional agent that can use a `calculator` and a `search` tool to answer complex queries.
+
+```text title="End-to-End: Research Agent Workflow"
+User: "What is the square root of 144 plus 10?"
+
+State at start: [{"role": "user", "content": "What is the square root of 144 plus 10?"}]
+
+── Loop iteration 1 ─────────────────────────────────────────────
+Think     LLM reads state → outputs tool_call:
+          {"name": "calculator", "arguments": {"a": 144, "op": "sqrt"}}
+Act       Dispatcher calls calculator(a=144, op="sqrt") → 12.0
+Observe   State: [..., {"role": "tool", "content": "12.0"}]
+
+── Loop iteration 2 ─────────────────────────────────────────────
+Think     LLM reads updated state → sees "12.0" → outputs tool_call:
+          {"name": "calculator", "arguments": {"a": 12.0, "op": "add", "b": 10}}
+Act       Dispatcher calls calculator(a=12.0, op="add", b=10) → 22.0
+Observe   State: [..., {"role": "tool", "content": "22.0"}]
+
+── Loop iteration 3 ─────────────────────────────────────────────
+Think     LLM reads state → no more tools needed → outputs final answer:
+          "The square root of 144 is 12. Adding 10 gives 22."
+          tool_calls = []  →  loop exits
+
+Final Answer: "The square root of 144 is 12. Adding 10 gives 22."
+```
+
+```python title="complete_agent.py"
+# --- Components ---
+
+class State:
+    def __init__(self):
+        self.messages = []
+    def add_message(self, role, content):
+        self.messages.append({"role": role, "content": content})
+    def get_context(self):
+        return self.messages
+
+class ToolRegistry:
+    def __init__(self):
+        self.tools = {}
+    def register(self, func):
+        self.tools[func.__name__] = func
+        return func
+    def execute(self, name, args):
+        return self.tools[name](**args)
+
+# --- Mock LLM Client (Simulating Tool Calling) ---
+
+class MockLLM:
+    def chat(self, messages):
+        last_msg = messages[-1]["content"]
+        # Logic to simulate an agent deciding to use tools
+        if "square root of 144" in last_msg and len(messages) < 3:
+            class Response:
+                content = ""
+                tool_calls = [{"name": "calculator", "arguments": {"a": 144, "op": "sqrt"}}]
+            return Response()
+        elif "12" in str(messages) and len(messages) < 5:
+            class Response:
+                content = ""
+                tool_calls = [{"name": "calculator", "arguments": {"a": 12, "op": "add", "b": 10}}]
+            return Response()
+        else:
+            class Response:
+                content = "The final answer is 22."
+                tool_calls = []
+            return Response()
+
+# --- Implementation ---
+
+registry = ToolRegistry()
+
+@registry.register
+def calculator(a, op, b=None):
+    if op == "sqrt": return a**0.5
+    if op == "add": return a + b
+    return 0
+
+def run_platform(query):
+    state = State()
+    state.add_message("user", query)
+    llm = MockLLM()
+    
+    print(f"🚀 Starting Agent Task: {query}\n")
+    
+    for i in range(5):
+        context = state.get_context()
+        response = llm.chat(context)
+        
+        if not response.tool_calls:
+            print(f"🏁 Final Response: {response.content}")
+            break
+            
+        for call in response.tool_calls:
+            print(f"🛠️  Action: Calling {call['name']} with {call['arguments']}")
+            result = registry.execute(call['name'], call['arguments'])
+            print(f"👁️  Observation: {result}")
+            state.add_message("tool", str(result))
+
+if __name__ == "__main__":
+    run_platform("What is the square root of 144 plus 10?")
+```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `KeyError: 'name'` or `AttributeError: 'name'` when dispatching | Inconsistent tool_call access — mixing object attributes (`.name`) with dict keys (`["name"]`) | Always access tool_calls as dicts: `tool_call["name"]`, `tool_call["arguments"]` |
+| Agent loops to `max_steps` without returning an answer | LLM keeps returning tool_calls instead of a final answer; no exit condition | Verify the system prompt instructs the LLM to output plain text (no tool_call) as the final step |
+| State grows unbounded, context window overflows | Every iteration appends tool outputs without pruning | Cap conversation history: keep last N messages, or summarize old messages before appending |
+| Empty string returned as the final answer | `state.add_message("assistant", ...)` called before checking `tool_calls`, adding an empty content message | Only add the assistant message when `not response.tool_calls` (final answer only) |
+| Tool raises `TypeError` on unexpected keyword arguments | LLM hallucinated an argument name not in the function signature | Validate `arguments` keys against the function signature before calling; return a descriptive error string |
+
+## Exercise
+
+Extend the `ToolRegistry` in the code above by adding a new tool called `multiply`. Register it using the `@registry.register` decorator and update the `MockLLM` logic to call this new tool as part of a three-step calculation (e.g., "Multiply 2 by 5, then add 10").
+
+## Summary
+
+- **Agentic Loops** allow LLMs to interact with the real world via a Think-Act-Observe cycle.
+- **State Management** is essential for maintaining the context of tool outputs and conversation history.
+- **Tool Dispatchers** provide a safe, structured way to map LLM text commands to executable code.
+- **ReAct Pattern** is the industry standard for designing autonomous agent architectures.
+
+## What's Next
+
+In the next chapter, we'll explore RAG (Retrieval Augmented Generation) — grounding LLM answers in your own data.

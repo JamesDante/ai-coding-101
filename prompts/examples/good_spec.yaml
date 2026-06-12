@@ -1,0 +1,71 @@
+# Example of a high-quality spec output
+# Use this as a reference when evaluating Spec Agent output quality.
+
+chapter_id: "02-prompt-engineering"
+title: "Prompt Engineering for Code"
+slug: "prompt-engineering"
+sidebar_position: 1
+category: "core-skills"
+difficulty: "beginner"
+estimated_minutes: 20
+description: "Learn to write effective prompts that get Claude to produce correct, maintainable code on the first try."
+
+learning_objectives:
+  - "Write a prompt that specifies language, constraints, and expected output format"
+  - "Use role prompting to set Claude's persona for a coding task"
+  - "Apply the context-task-format (CTF) pattern to any coding request"
+  - "Identify and fix a vague prompt that produces inconsistent results"
+
+prerequisites:
+  - "getting-started"  # must have Claude Code installed
+
+sections:
+  - heading: "Why Prompts Matter"
+    content_brief: >
+      Explain that Claude's output quality is directly tied to prompt quality.
+      Show a side-by-side of a vague prompt vs. a specific prompt for the same task,
+      with the resulting code outputs, so the reader sees the difference immediately.
+    has_code_example: true
+    code_language: "bash"
+    code_context: "Two claude CLI invocations — one vague, one specific — showing the diff in output"
+
+  - heading: "The CTF Pattern"
+    content_brief: >
+      Introduce the Context-Task-Format pattern. Context = what codebase/language/constraints.
+      Task = the specific thing to do. Format = how to return the result (function, class, inline comment, etc.).
+      Walk through applying CTF to a real example: writing a rate-limiter middleware.
+    has_code_example: true
+    code_language: "bash"
+    code_context: "A CTF-structured prompt sent via `claude` CLI, producing a TypeScript Express middleware"
+
+  - heading: "Role Prompting"
+    content_brief: >
+      Show how prefixing with "Act as a senior Python engineer who…" improves output style.
+      Demonstrate with a code review request — role prompting makes Claude flag naming conventions,
+      not just syntax errors.
+    has_code_example: true
+    code_language: "bash"
+    code_context: "claude with a role prefix for code review"
+
+  - heading: "Common Mistakes"
+    content_brief: >
+      List the top 3 prompt mistakes: missing language/version, no output format specified,
+      asking two things in one prompt. For each mistake show the bad prompt and the fix.
+    has_code_example: false
+    code_language: null
+    code_context: null
+
+key_terms:
+  - "prompt"
+  - "context window"
+  - "CTF pattern"
+  - "role prompting"
+  - "output format"
+
+admonitions:
+  - type: "tip"
+    placement: "after_section_2"
+    content: "Save your best prompts in a prompts/ folder in your project. Treat them like code — version control them."
+  - type: "warning"
+    placement: "after_section_4"
+    content: "Avoid asking Claude to 'fix my code' without pasting the code. Always include the relevant snippet."

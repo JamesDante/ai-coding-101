@@ -1,0 +1,250 @@
+---
+sidebar_position: 1
+title: "RAG (Retrieval Augmented Generation)"
+description: "Learn how to build a complete retrieval pipeline—from chunking and embeddings to re-ranking and prompt augmentation—to ground LLM answers in your own data."
+---
+
+## Learning Objectives
+
+- Implement effective text chunking strategies for large documents.
+- Generate and store vector embeddings in a vector database.
+- Perform similarity searches to retrieve relevant context.
+- Apply re-ranking techniques to improve retrieval precision.
+- Construct an augmented prompt that integrates retrieved chunks for the LLM.
+
+## The RAG Architecture: Why and How
+
+LLMs have two fundamental limitations: a finite context window and a knowledge cutoff date. Ask a model about your private codebase or last week's incident report and it will either hallucinate or refuse to answer.
+
+Retrieval Augmented Generation (RAG) solves this by giving the model an external memory. The architecture splits into two distinct phases:
+
+```
+── INGESTION (runs once, offline) ─────────────────────────────────
+  Raw documents
+       ↓ clean + split
+  Chunks (500–1000 tokens each)
+       ↓ embedding model
+  Vectors
+       ↓ upsert
+  Vector Database
+
+── QUERY (runs per user request, online) ──────────────────────────
+  User question
+       ↓ same embedding model
+  Query vector
+       ↓ cosine similarity search
+  Top-K candidate chunks
+       ↓ cross-encoder re-ranker
+  Top-N refined chunks
+       ↓ inject into prompt template
+  Augmented prompt → LLM → Answer
+```
+
+The key insight: the LLM never searches anything. It only reads text you put in its prompt. RAG is the pipeline that decides *which* text to put there.
+
+## Data Preparation: Chunking Strategies
+
+You cannot embed an entire document as one unit — the resulting vector would average out all the meaning and retrieve nothing precisely. You must break documents into chunks small enough to be specific but large enough to retain semantic coherence.
+
+Two primary strategies:
+
+- **Fixed-size chunking**: Split every N characters. Fast, but frequently cuts mid-sentence and destroys context.
+- **Recursive character splitting**: Split at natural boundaries (paragraphs → newlines → spaces), falling back to smaller separators only when needed. Preferred for prose and documentation.
+
+```python title="chunking.py"
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+def prepare_documents(raw_text: str) -> list[str]:
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,      # characters per chunk
+        chunk_overlap=50,    # overlap to avoid losing context at boundaries
+        separators=["\n\n", "\n", " ", ""]
+    )
+    return splitter.split_text(raw_text)
+
+chunks = prepare_documents(open("handbook.txt").read())
+print(f"{len(chunks)} chunks created, avg {sum(len(c) for c in chunks)//len(chunks)} chars each")
+```
+
+:::warning
+Too small chunks lose context; too large chunks introduce noise. A common starting point is 500 characters with 50-character overlap. Test against your actual documents and measure retrieval precision before committing to a chunk size.
+:::
+
+## Vector Embeddings and Storage
+
+An embedding model converts text into a high-dimensional vector — a list of floating-point numbers that encodes semantic meaning. Chunks with similar meanings end up geometrically close in this vector space.
+
+```python title="embeddings.py"
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# Load a local embedding model (no API key needed)
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-dim vectors
+
+# Initialise a local vector DB
+client = chromadb.Client()
+collection = client.create_collection("company_docs")
+
+def ingest_chunks(chunks: list[str]) -> None:
+    vectors = embed_model.encode(chunks).tolist()
+    collection.add(
+        ids=[f"chunk_{i}" for i in range(len(chunks))],
+        embeddings=vectors,
+        documents=chunks,        # stored as metadata for retrieval
+    )
+
+ingest_chunks(chunks)
+print(f"Ingested {collection.count()} chunks into vector DB")
+```
+
+Popular embedding models: `all-MiniLM-L6-v2` (fast, local), `text-embedding-3-small` (OpenAI API), `embed-english-v3.0` (Cohere). Use the same model for ingestion and query — mismatched models produce garbage results.
+
+## Retrieval: Similarity Search
+
+At query time, the user's question is converted into a vector using the *same* embedding model. The vector database then returns the K chunks with the highest cosine similarity.
+
+```python title="retrieval.py"
+def retrieve_candidates(query: str, k: int = 10) -> list[str]:
+    query_vector = embed_model.encode(query).tolist()
+    results = collection.query(
+        query_embeddings=[query_vector],
+        n_results=k,
+    )
+    return results["documents"][0]   # list of chunk strings
+```
+
+Cosine similarity measures the angle between two vectors, not their magnitude — so a short question and a long chunk can still match well if they share meaning.
+
+## Improving Precision with Re-ranking
+
+Initial retrieval is fast but imprecise. Vector similarity is computed independently per chunk; it cannot measure how relevant a chunk is *in the context of the specific question*.
+
+A **cross-encoder re-ranker** fixes this by reading the query and each candidate chunk *together* as a pair, outputting a precise relevance score. It is slower (O(K) inference calls) but dramatically improves precision.
+
+```python title="reranking.py"
+from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+def rerank(query: str, candidates: list[str], top_n: int = 3) -> list[str]:
+    pairs = [(query, chunk) for chunk in candidates]
+    scores = reranker.predict(pairs)
+    ranked = sorted(zip(scores, candidates), reverse=True)
+    return [chunk for _, chunk in ranked[:top_n]]
+```
+
+:::tip
+Re-rank only a small initial pool (top 10–20). Running a cross-encoder over hundreds of chunks at query time will make your system noticeably slow.
+:::
+
+## Constructing the Augmented Prompt
+
+This step is where RAG connects to the LLM. The retrieved chunks are injected into a prompt template that instructs the model to answer *only* from the provided context.
+
+```python title="prompt.py"
+SYSTEM_PROMPT = """You are a helpful assistant. Answer the user's question using ONLY
+the context provided below. If the answer is not in the context, say
+"I don't have that information." Do not use your training knowledge."""
+
+def build_augmented_prompt(question: str, chunks: list[str]) -> str:
+    context = "\n\n---\n\n".join(chunks)
+    return f"{SYSTEM_PROMPT}\n\nContext:\n{context}\n\nQuestion: {question}\nAnswer:"
+```
+
+The explicit instruction to use *only* the context is critical. Without it, the model will blend retrieved facts with its training data, making hallucinations harder to detect.
+
+## End-to-End Example: Company Knowledge Base
+
+```text title="End-to-End: RAG Pipeline in Action"
+User: "What is the expense reimbursement limit for business travel?"
+
+── INGESTION (already done) ────────────────────────────────────────
+  handbook.pdf → 342 chunks → 342 vectors stored in ChromaDB
+
+── QUERY ───────────────────────────────────────────────────────────
+Step 1  Embed query
+        "What is the expense reimbursement limit for business travel?"
+        → vector [0.12, -0.05, 0.88, ...]   (384 dimensions)
+
+Step 2  Similarity search (top-10)
+        ChromaDB returns 10 chunks, including:
+        Chunk #87: "Employees may claim up to $500 per night for hotels..."
+        Chunk #88: "Flight reimbursements are capped at economy class fares..."
+        Chunk #203: "Team lunch budgets are $30 per person..."  ← noisy
+
+Step 3  Re-ranking (top-3)
+        Cross-encoder scores: Chunk #87 → 0.94, Chunk #88 → 0.89, Chunk #203 → 0.21
+        Filtered to: [Chunk #87, Chunk #88]
+
+Step 4  Augmented prompt
+        System: "Answer using ONLY the context below..."
+        Context: "Employees may claim up to $500 per night for hotels...
+                  Flight reimbursements are capped at economy class fares..."
+        Question: "What is the expense reimbursement limit for business travel?"
+
+Step 5  LLM generates answer
+        "For business travel, hotel reimbursements are capped at $500 per night.
+         Flights are reimbursed at economy class fares."
+```
+
+Notice how Chunk #203 (team lunches) was retrieved by similarity but eliminated by the re-ranker. Without re-ranking, it would have polluted the context.
+
+```python title="rag_pipeline.py"
+from anthropic import Anthropic
+
+class RAGAssistant:
+    def __init__(self, embed_model, reranker, llm_client: Anthropic, collection):
+        self.embed_model = embed_model
+        self.reranker    = reranker
+        self.llm         = llm_client
+        self.collection  = collection
+
+    def ask(self, question: str) -> str:
+        # 1. Retrieve initial candidates
+        query_vec  = self.embed_model.encode(question).tolist()
+        results    = self.collection.query(query_embeddings=[query_vec], n_results=10)
+        candidates = results["documents"][0]
+
+        # 2. Re-rank to top 3
+        refined = rerank(question, candidates, top_n=3)
+
+        # 3. Build augmented prompt and call LLM
+        prompt = build_augmented_prompt(question, refined)
+        message = self.llm.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Correct topic retrieved but answer is wrong | Chunk too large, relevant sentence diluted | Reduce chunk size |
+| Relevant chunks not retrieved at all | Query phrasing very different from document language | Add query rewriting or HyDE |
+| Model ignores retrieved context | Prompt doesn't clearly instruct it to | Add explicit "use ONLY context" instruction |
+| Slow query latency | Re-ranking too many candidates | Limit initial pool to ≤ 20 before re-ranking |
+| Different results for same query | Embedding model changed between ingestion and query | Always use the same model version for both |
+
+## Exercise
+
+Build a minimal RAG script over a text file of your choice:
+
+1. Load the file and split it into chunks with `RecursiveCharacterTextSplitter` (chunk_size=500, overlap=50).
+2. Embed the chunks with `sentence-transformers` (`all-MiniLM-L6-v2`) and store them in ChromaDB.
+3. Accept a question from the command line, retrieve the top-5 chunks, and print them.
+4. Observe how changing `chunk_size` to 100 vs 1000 affects the relevance of the retrieved results.
+
+## Summary
+
+- **RAG** separates into two phases: offline ingestion (chunk → embed → store) and online query (embed → retrieve → re-rank → augment → generate).
+- **Chunking** size is a critical tuning parameter — test empirically for your data.
+- **The same embedding model** must be used at both ingestion and query time.
+- **Re-ranking** with a cross-encoder adds a second pass to remove noisy candidates from the initial similarity search.
+- **The augmented prompt template** must explicitly instruct the LLM to answer only from the provided context to prevent training-data bleed.
+
+## What's Next
+
+In the next chapter, we'll explore Context Engineering at Scale — techniques for managing large codebases within LLM context windows.

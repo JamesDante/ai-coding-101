@@ -1,0 +1,163 @@
+---
+sidebar_position: 4
+title: "Coding Agents"
+description: "Learn to deploy and manage autonomous coding agents to execute complex, multi-file refactors and architectural changes."
+---
+
+## Learning Objectives
+
+* Distinguish between standard AI assistants and autonomous coding agents
+* Configure a coding agent environment using tools like Cursor or Claude Code
+* Execute a wide-scale refactor across multiple files using an agentic workflow
+* Verify and audit agent-generated changes through diff reviews and test suites
+
+## From Copilots to Agents
+
+Standard AI assistants, often referred to as "Copilots," primarily function through autocomplete or chat interfaces. They operate on a request-response basis, usually focusing on the code visible in your current editor tab.
+
+Coding agents represent a paradigm shift toward autonomy. Unlike simple chat interfaces, an agent can read your entire file tree, execute terminal commands, and edit multiple files to achieve a goal. This capability is driven by the **Agentic Loop**:
+
+1.  **Perceive**: The agent scans the codebase, reads relevant files, and understands the directory structure.
+2.  **Plan**: The AI formulates a step-by-step strategy to implement the requested change.
+3.  **Act**: The agent performs actions, such as writing code, creating new files, or running build scripts.
+4.  **Evaluate**: The agent checks its work by running tests or analyzing error logs to ensure the plan succeeded.
+
+```
+── AGENTIC LOOP ──────────────────────────────────────────────────
+  User instruction
+       ↓
+  Perceive ──→ read files, search codebase, understand structure
+       ↓
+  Plan ──────→ decompose goal into ordered sub-tasks
+       ↓
+  Act ───────→ write/edit files, run shell commands
+       ↓
+  Evaluate ──→ run tests, read error output
+       ↓
+  ┌── pass? ──→ done, present diff for review
+  └── fail? ──→ back to Perceive with new observations
+```
+
+The loop exits either when the agent believes the task is complete or when it hits a configured iteration limit. The **Evaluate** step is what separates agents from simple autocomplete: real feedback (test failures, compiler errors) re-enters the loop as new context.
+
+## Setting Up Your Agentic Environment
+
+To use an agent effectively, you must provide it with global context. This is achieved through codebase indexing (or embedding), where the AI creates a searchable mathematical representation of your entire project. Without proper indexing, the agent may miss critical dependencies in distant directories.
+
+Several CLI-based coding agents are available; they all follow the same agentic loop but differ in their tool integrations:
+
+| Tool | Install | Init |
+|---|---|---|
+| Claude Code | `npm install -g @anthropic-ai/claude-code` | `claude` (in project dir) |
+| Aider | `pip install aider-chat` | `aider` |
+| Cursor (IDE) | Download from cursor.com | Open project folder |
+
+Whichever tool you choose, the first step is giving it access to your codebase. CLI agents index the project automatically on first run; IDE agents embed it in the background.
+
+```bash title="Terminal — Claude Code example"
+# Navigate to your project, then launch the agent
+cd my-project
+claude
+```
+
+## Executing Wide-Scale Refactors
+
+When working with agents, you should move away from "single-file" prompting—where you copy and paste snippets into a chat window—and toward "project-wide" instructions. Instead of telling the AI how to change one function, you describe the architectural intent and let the agent identify all affected files.
+
+The following example demonstrates a high-level instruction for a complex refactor:
+
+```markdown title="agent_prompt.md"
+Refactor the UserAuth service to migrate from the deprecated JWT implementation to the new OAuth2 provider. 
+
+1. Update the `auth_provider.py` interface to match the new signature.
+2. Locate all controllers using the old `validate_token` method and update them to use `verify_oauth_token`.
+3. Ensure that the integration tests in `/tests/auth` are updated to reflect these changes.
+```
+
+:::warning
+Always ensure you are on a clean Git branch before initiating an agentic refactor. Agents can modify dozens of files in seconds, making it impossible to undo changes manually without version control.
+:::
+
+## The Human-in-the-Loop: Review and Verification
+
+The "Human-in-the-Loop" (HITL) pattern is the most critical part of the agentic workflow. You must never treat an agent's output as a finished product. Your role shifts from writing code to auditing it. 
+
+After the agent completes its task, use Git tools to inspect every modification and run your existing test suites to catch any regressions.
+
+```bash title="Terminal"
+# Review all lines changed by the agent
+git diff main..feature-refactor
+
+# Check which files were touched
+git diff --name-only main..feature-refactor
+
+# Run the full test suite
+npm test
+```
+
+When reading a diff, focus on three categories of risk: **deleted lines** (is anything removed that should stay?), **renamed identifiers** (did the agent refactor something it shouldn't have?), and **new external calls** (did it introduce an unexpected dependency or network call?).
+
+:::tip
+If an agent gets stuck in a loop or fails to fix a bug after two attempts, provide a specific hint about the file or logic it is missing rather than asking it to 'try again'.
+:::
+
+## End-to-End Example: OAuth2 Migration
+
+The following trace shows what happens inside the loop when the agent receives the OAuth2 refactor prompt above.
+
+```text title="End-to-End: Agent Executing a Multi-File Refactor"
+User: "Migrate UserAuth from deprecated JWT to OAuth2 provider."
+
+── Loop iteration 1 ─────────────────────────────────────────────
+Perceive  Agent searches codebase for "validate_token", finds:
+          auth_provider.py (l.34), users_controller.py (l.12),
+          payments_controller.py (l.88), tests/auth/test_login.py (l.5)
+Plan      Sub-tasks:
+          1. Update auth_provider.py interface
+          2. Update users_controller.py
+          3. Update payments_controller.py
+          4. Update test_login.py
+Act       Edits auth_provider.py — replaces validate_token signature
+          with verify_oauth_token(token: str, scopes: list[str]) -> dict
+Evaluate  Runs: pytest tests/auth/
+          Result: 3 failures (controllers still call old method name)
+
+── Loop iteration 2 ─────────────────────────────────────────────
+Perceive  Reads failure output — confirms 3 files still use validate_token
+Act       Edits users_controller.py, payments_controller.py,
+          test_login.py — updates all call sites
+Evaluate  Runs: pytest tests/auth/
+          Result: all 12 tests pass ✓
+
+── Final ────────────────────────────────────────────────────────
+Agent presents diff: 4 files changed, 18 insertions, 9 deletions
+Developer reviews git diff, confirms changes look correct, merges.
+```
+
+The agent ran 2 iterations — not because it was told to, but because the test failures provided concrete feedback that re-entered the loop as new observations.
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Agent edits wrong files (unrelated modules) | Instruction too vague — no file or method names given | Name specific files and method signatures in the prompt |
+| Agent loops on the same failing test indefinitely | No iteration limit set; LLM retries the same approach | Set `max_iterations` (10–20); add a hint about the specific error after 2 failures |
+| Agent silently skips a file | Codebase not indexed / file excluded from context | Re-index, or explicitly mention the file path in the prompt |
+| Refactor passes tests but breaks production behaviour | Tests didn't cover the changed code path | Run the broader test suite, not just the auth suite; add missing test coverage first |
+| Agent introduces a new external dependency | No constraints given in the prompt | Add a constraint line: "Do not add new dependencies or imports not already in the project." |
+
+## Exercise
+
+Create a new Git branch named `refactor-test`. Use a coding agent to find every instance of a specific hardcoded string in your project and replace it with a constant defined in a new `constants.py` file. Once the agent finishes, use `git diff` to verify that all instances were updated correctly and that no syntax errors were introduced.
+
+## Summary
+
+* Coding agents run in a **Perceive → Plan → Act → Evaluate** loop; test failures and error output re-enter the loop as new context.
+* Codebase indexing is essential for providing agents with the global context needed for complex tasks.
+* **High-level instructions** outperform single-file prompts — describe architectural intent and let the agent find all affected files.
+* Human oversight via **Git diff** and automated test suites is mandatory: look for deleted lines, renamed identifiers, and new external calls.
+* Add **constraint lines** in prompts (e.g. "do not add new dependencies") to prevent unexpected changes.
+
+## What's Next
+
+In the next chapter, we'll apply these patterns to a real project: building a SaaS application with AI assistance throughout the stack.

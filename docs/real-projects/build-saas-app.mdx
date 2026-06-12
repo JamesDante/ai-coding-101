@@ -1,0 +1,164 @@
+---
+sidebar_position: 1
+title: "Build a SaaS Application"
+description: "Learn to leverage AI planning and iterative development to build a complete SaaS application with authentication and billing."
+---
+
+## Learning Objectives
+
+- Architect a full-stack SaaS application using AI-generated technical specifications.
+- Implement secure user authentication flows via AI scaffolding.
+- Integrate a third-party billing provider (e.g., Stripe) for subscription management.
+- Build a dynamic user dashboard based on an AI-planned data model.
+- Execute an iterative 'Plan-Code-Verify' loop to refine complex application features.
+
+## AI-Driven Architecture Planning
+
+Before writing any code, use the AI to generate a comprehensive Product Requirements Document (PRD) and technical architecture. A solid foundation requires defining your data schema, API endpoints, and state management strategy before implementation begins. This prevents costly refactoring later in the development cycle.
+
+```markdown title="system_prompt.md"
+Act as a Senior Software Architect. Generate a detailed technical specification for a SaaS application that allows users to [insert core feature]. 
+
+The specification must include:
+1. A detailed Data Schema (PostgreSQL/Prisma format).
+2. API Endpoints (REST or GraphQL) with request/response shapes.
+3. Authentication and Authorization flow.
+4. Subscription Tier definitions and permission logic.
+```
+
+:::tip
+When generating the architecture, ask the AI to "critique its own plan for potential bottlenecks" before you start coding. This often reveals missing edge cases in the auth or billing flow.
+:::
+
+## Implementing Secure Authentication
+
+Use the AI to scaffold authentication logic by integrating a provider like Clerk or NextAuth. You can prompt the AI to create protected route wrappers that check for an active session before rendering sensitive content, ensuring your application remains secure from the start.
+
+```typescript title="middleware.ts"
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { authMiddleware } from './auth-config';
+
+export default authMiddleware((req) => {
+  const isDashboardRoute = req.nextUrl.pathname.startsWith('/dashboard');
+
+  if (isDashboardRoute && !req.auth) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+## Integrating Billing and Subscription Logic
+
+Implementing payment flows requires handling Stripe checkout sessions and webhooks. Use the AI to generate a webhook handler that listens for `checkout.session.completed` events, allowing you to automatically update your database with the user's new subscription status.
+
+```typescript title="api/webhooks/stripe.ts"
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { db } from '@/lib/db';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const sig = req.headers.get('stripe-signature')!;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+  } catch (err) {
+    return NextResponse.json({ error: 'Webhook Error' }, { status: 400 });
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await db.user.update({
+      where: { email: session.customer_details?.email! },
+      data: { subscriptionTier: 'pro' },
+    });
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+:::warning
+Never prompt the AI to handle raw credit card data directly in your code; always use a secure provider like Stripe or Lemon Squeezy to maintain PCI compliance.
+:::
+
+## Building the User Dashboard UI
+
+Once your backend logic is ready, prompt the AI for complex UI components based on your previously defined data model. You can create a responsive dashboard that dynamically toggles features or displays different content based on whether the user is on a free or pro plan.
+
+```tsx title="Dashboard.tsx"
+import { useUser } from '@/hooks/use-user';
+
+export default function Dashboard() {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <div className="p-8">
+      <h1>Welcome, {user.name}</h1>
+      <p>Current Plan: <span className="capitalize">{user.subscriptionTier}</span></p>
+
+      <div className="mt-6 grid gap-4">
+        <FeatureCard title="Basic Analytics" enabled={true} />
+        <FeatureCard
+          title="Advanced AI Insights"
+          enabled={user.subscriptionTier === 'pro'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeatureCard({ title, enabled }: { title: string; enabled: boolean }) {
+  return (
+    <div className={`p-4 border rounded ${enabled ? 'opacity-100' : 'opacity-50'}`}>
+      {title} {enabled ? '✅' : '🔒'}
+    </div>
+  );
+}
+```
+
+## End-to-End Example: From Prompt to Production
+
+This walkthrough demonstrates the iterative evolution of a project from an initial idea to a functional feature using an AI assistant.
+
+```markdown title="project_evolution.md"
+### Step 1: The Initial PRD Prompt
+**User:** "Generate a PRD for a SaaS app that manages task lists with a Pro tier."
+**AI:** [Generates schema, endpoints, and auth requirements]
+
+### Step 2: Implementing the Feature
+**User:** "Based on the schema provided, write the Prisma model for 'Task' and 'Subscription'."
+**AI:** [Outputs `schema.prisma` code]
+
+### Step 3: Refining the Logic
+**User:** "Now, create a Next.js API route to handle Stripe webhooks that updates the Subscription tier."
+**AI:** [Outputs webhook handler code]
+```
+
+## Exercise
+
+Create a new prompt for an AI assistant that asks it to design a database schema for a "Subscription-based Newsletter" service. The schema must include `Users`, `Newsletters`, and `Subscriptions` tables, ensuring that only users with an 'active' status can access premium content.
+
+## Summary
+
+- Use AI to architect your application via PRDs before writing any code.
+- Leverage AI scaffolding for complex logic like authentication middleware.
+- Automate subscription management by prompting for webhook handlers.
+- Build dynamic UIs that react to the user's data model and billing status.
+
+## What's Next
+
+In the next chapter, we'll build an AI Chat App — adding a conversational interface, streaming responses, and message history.

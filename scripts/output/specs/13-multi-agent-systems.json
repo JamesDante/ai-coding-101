@@ -1,0 +1,69 @@
+{
+  "chapter_id": "13-multi-agent-systems",
+  "title": "Multi-Agent Systems",
+  "slug": "multi-agent-systems",
+  "sidebar_position": 3,
+  "category": "ai-agents",
+  "difficulty": "advanced",
+  "estimated_minutes": 30,
+  "description": "Learn how to orchestrate multiple AI agents in a collaborative pipeline to plan, implement, and review code features.",
+  "learning_objectives": [
+    "Define distinct roles and personas for specialized AI agents",
+    "Design a sequential hand-off workflow between a Planner and an Implementer",
+    "Implement an automated feedback loop for code review and refinement",
+    "Configure structured communication protocols to ensure reliable data transfer between agents"
+  ],
+  "prerequisites": [
+    "Basic understanding of prompt engineering",
+    "Experience with single-agent LLM interactions"
+  ],
+  "sections": [
+    {
+      "heading": "The Multi-Agent Architecture",
+      "content_brief": "Explain the concept of 'separation of concerns' in AI agents. Contrast a single monolithic prompt with a multi-agent system where specialized roles reduce hallucination and increase precision.",
+      "has_code_example": false,
+      "code_language": null,
+      "code_context": null
+    },
+    {
+      "heading": "Defining Agent Personas",
+      "content_brief": "Detail how to write system prompts for two specific roles: the Technical Architect (Planner) and the Software Engineer (Implementer). Focus on defining clear boundaries, goals, and expected output formats for each.",
+      "has_code_example": true,
+      "code_language": "markdown",
+      "code_context": "System prompt templates for a Planner agent and an Implementer agent"
+    },
+    {
+      "heading": "Building the Collaborative Pipeline",
+      "content_brief": "Demonstrate the technical implementation of a sequential pipeline. Show how to pass the output of the Planner (e.g., a technical spec) as the primary context for the Implementer's prompt.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A Python script orchestrating two LLM calls where the second depends on the first"
+    },
+    {
+      "heading": "Implementing the Review Loop",
+      "content_brief": "Introduce a third agent or a feedback mechanism where the Planner reviews the Implementer's code against the original spec. Explain how to implement a conditional loop that triggers re-implementation if the review fails.",
+      "has_code_example": true,
+      "code_language": "python",
+      "code_context": "A while-loop implementation that iterates between Implementation and Review agents until a 'PASS' signal is received"
+    }
+  ],
+  "key_terms": [
+    "Agent Orchestration",
+    "Persona Prompting",
+    "Hand-off",
+    "Feedback Loop",
+    "State Management"
+  ],
+  "admonitions": [
+    {
+      "type": "warning",
+      "placement": "after_section_4",
+      "content": "Be careful to implement a maximum iteration limit (e.g., 3-5 loops) to prevent 'infinite loops' where agents disagree indefinitely, which can rapidly deplete your API credits."
+    },
+    {
+      "type": "tip",
+      "placement": "after_section_3",
+      "content": "Use structured formats like JSON or Markdown headers for agent hand-offs. This makes it significantly easier for the subsequent agent to parse specific requirements without noise."
+    }
+  ]
+}

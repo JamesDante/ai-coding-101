@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'AI Coding 101',
-  tagline: 'Learn AI-Assisted Coding',
+  tagline: 'Master AI-Assisted Coding with Claude, ChatGPT & LLMs — From Prompt Engineering to Multi-Agent Systems',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -48,6 +48,37 @@ const config: Config = {
       },
     },
   },
+
+  headTags: [
+    {
+      tagName: 'meta',
+      attributes: { name: 'keywords', content: 'AI coding, LLM, Claude, ChatGPT, prompt engineering, AI agent, multi-agent systems, RAG, MCP, coding agent, AI-assisted development, AI programming tutorial' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { name: 'description', content: 'AI Coding 101 — a free bilingual (EN + ZH) tutorial covering prompt engineering, AI agents, RAG, MCP, and building real projects with Claude, ChatGPT, and open-source LLMs.' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { property: 'og:title', content: 'AI Coding 101 — Learn AI-Assisted Coding with LLMs' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { property: 'og:description', content: '21 chapters from prompt engineering to multi-agent systems and enterprise AI. Free, open-source, bilingual (EN + ZH).' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { name: 'twitter:card', content: 'summary_large_image' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { name: 'twitter:title', content: 'AI Coding 101 — Learn AI-Assisted Coding with LLMs' },
+    },
+    {
+      tagName: 'meta',
+      attributes: { name: 'twitter:description', content: '21 chapters from prompt engineering to multi-agent systems and enterprise AI. Free, open-source, bilingual (EN + ZH).' },
+    },
+  ],
 
   presets: [
     [

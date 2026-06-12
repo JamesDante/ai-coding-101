@@ -53,7 +53,14 @@ CODE EXAMPLES — correctness rules:
   writing the next one.
 - Always include imports at the top of standalone code blocks.
 - Use realistic values in examples (actual model names, plausible numbers) rather than
-  placeholder strings like "your_value_here" inside logic.
+  placeholder strings like "your_value_here" or "[insert X]" inside logic.
+- Webhook / event-driven examples: never look up records by user-supplied fields
+  (email, name) that may be null or spoofed. Use a stable internal ID stored in
+  metadata at event creation time (e.g. `session.metadata.userId`).
+- React components that fetch async data: always guard against null data after loading,
+  not just the loading state. Pattern: `if (isLoading || !data) return <Loading />;`
+- Auth middleware examples: note when an approach is specific to a particular runtime
+  (edge vs Node.js) and whether the auth provider supports it.
 
 COMMON FAILURE MODES — required for complex systems:
 - Any chapter covering a multi-step pipeline, protocol, or integration MUST include a

@@ -16,8 +16,28 @@ description: "Learn to leverage AI planning and iterative development to build a
 
 Before writing any code, use the AI to generate a comprehensive Product Requirements Document (PRD) and technical architecture. A solid foundation requires defining your data schema, API endpoints, and state management strategy before implementation begins. This prevents costly refactoring later in the development cycle.
 
+```
+── SAAS ARCHITECTURE ──────────────────────────────────────────────
+  Browser
+       ↓
+  ┌── Next.js (App Router) ────────────────────────────────────────┐
+  │  middleware.ts  →  check session  →  redirect /login if unauth  │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ authenticated request
+  ┌── API Routes ───────────────────────────────────────────────────┐
+  │  POST /api/checkout         →  create Stripe Session            │
+  │  POST /api/webhooks/stripe  →  verify sig  →  update DB         │
+  └────────────────────────────────────────────────────────────────┘
+       ↓                                       ↑ webhook POST
+  ┌── Prisma / PostgreSQL ──────────────┐   ┌── Stripe ────────────┐
+  │  User { id, email, customerId,      │   │  Checkout Session    │
+  │         subscriptionTier }          │   │  checkout.session    │
+  └─────────────────────────────────────┘   │     .completed       │
+                                            └──────────────────────┘
+```
+
 ```markdown title="system_prompt.md"
-Act as a Senior Software Architect. Generate a detailed technical specification for a SaaS application that allows users to [insert core feature]. 
+Act as a Senior Software Architect. Generate a detailed technical specification for a SaaS task-management app with a Free tier (up to 5 projects) and a Pro tier (unlimited projects + AI summaries).
 
 The specification must include:
 1. A detailed Data Schema (PostgreSQL/Prisma format).
@@ -69,18 +89,22 @@ export async function POST(req: Request) {
   const body = await req.text();
   const sig = req.headers.get('stripe-signature')!;
 
-  let event;
-
+  let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
-    return NextResponse.json({ error: 'Webhook Error' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
+    // Use metadata.userId set at checkout creation — never rely on customer_details.email
+    const userId = session.metadata?.userId;
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing userId in metadata' }, { status: 400 });
+    }
     await db.user.update({
-      where: { email: session.customer_details?.email! },
+      where: { id: userId },
       data: { subscriptionTier: 'pro' },
     });
   }
@@ -103,7 +127,7 @@ import { useUser } from '@/hooks/use-user';
 export default function Dashboard() {
   const { user, isLoading } = useUser();
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading || !user) return <div>Loading...</div>;
 
   return (
     <div className="p-8">
@@ -130,23 +154,51 @@ function FeatureCard({ title, enabled }: { title: string; enabled: boolean }) {
 }
 ```
 
-## End-to-End Example: From Prompt to Production
+## End-to-End Example: Building the Stripe Subscription Flow
 
-This walkthrough demonstrates the iterative evolution of a project from an initial idea to a functional feature using an AI assistant.
+```text title="End-to-End: Five AI-Assisted Steps"
+Goal: implement a complete Pro subscription flow in a Next.js SaaS app.
 
-```markdown title="project_evolution.md"
-### Step 1: The Initial PRD Prompt
-**User:** "Generate a PRD for a SaaS app that manages task lists with a Pro tier."
-**AI:** [Generates schema, endpoints, and auth requirements]
+── Step 1: Generate checkout route ──────────────────────────────────
+Prompt:  "Create POST /api/checkout. Create a Stripe Checkout Session
+          for price ID 'price_pro_monthly', mode='subscription', and
+          store the current user's DB id in session metadata."
+Output:  /api/checkout/route.ts — creates session with metadata: { userId }
+         Returns: { url: "https://checkout.stripe.com/pay/cs_test_..." }
 
-### Step 2: Implementing the Feature
-**User:** "Based on the schema provided, write the Prisma model for 'Task' and 'Subscription'."
-**AI:** [Outputs `schema.prisma` code]
+── Step 2: Test checkout locally ────────────────────────────────────
+Action:  curl -X POST http://localhost:3000/api/checkout
+Result:  302 redirect to Stripe-hosted checkout page ✓
 
-### Step 3: Refining the Logic
-**User:** "Now, create a Next.js API route to handle Stripe webhooks that updates the Subscription tier."
-**AI:** [Outputs webhook handler code]
+── Step 3: Generate webhook handler ─────────────────────────────────
+Prompt:  "Create /api/webhooks/stripe. Verify the Stripe signature, handle
+          checkout.session.completed, update user.subscriptionTier='pro'
+          using metadata.userId — not customer_details.email."
+Output:  /api/webhooks/stripe/route.ts (see code above)
+
+── Step 4: Test webhook locally ─────────────────────────────────────
+Action:  stripe listen --forward-to localhost:3000/api/webhooks/stripe
+         stripe trigger checkout.session.completed
+Result:  DB row updated: subscriptionTier = 'pro' ✓
+
+── Step 5: Add Dashboard gate ───────────────────────────────────────
+Prompt:  "Add a ProGate component to Dashboard.tsx. If subscriptionTier
+          is 'free', render a locked state with an 'Upgrade to Pro' button
+          instead of the premium feature content."
+Output:  ProGate wraps AI Insights panel — free users see upgrade CTA
+
+Final: checkout → webhook → gated UI, in 5 AI-assisted steps.
 ```
+
+## Common Failure Modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Webhook throws "record not found" or updates wrong user | Matching by `customer_details.email` — can be null or differ from DB | Pass `userId` in `metadata` at checkout creation; look up by `metadata.userId` in the webhook |
+| `middleware.ts` redirects authenticated users to /login | Auth session unavailable in edge runtime | Confirm your auth provider supports edge runtime; use `getToken()` for NextAuth JWT mode |
+| `Cannot read properties of null (reading 'name')` in Dashboard | `user` is null after session expires — only `isLoading` is guarded | Change guard to `if (isLoading \|\| !user)` before accessing any user property |
+| Webhook returns 400 on every event in production | `STRIPE_WEBHOOK_SECRET` set to the CLI secret, not the dashboard signing secret | Create a production webhook endpoint in Stripe dashboard; copy its signing secret to your env |
+| Pro features still accessible after subscription cancels | `customer.subscription.deleted` event not handled | Add handler that resets `subscriptionTier = 'free'` on `customer.subscription.deleted` |
 
 ## Exercise
 

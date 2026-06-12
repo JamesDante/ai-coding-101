@@ -16,8 +16,28 @@ description: "学习利用 AI 规划和迭代开发，构建一个包含身份�
 
 在编写任何代码之前，使用 AI 生成一份全面的产品需求文档 (PR D) 和技术架构。稳固的基础要求在开始实现之前定义好数据模式 (Data Schema)、API 端点和状态管理策略。这可以避免在开发周期后期进行昂贵的重构。
 
+```
+── SAAS 架构 ──────────────────────────────────────────────────────
+  浏览器
+       ↓
+  ┌── Next.js (App Router) ────────────────────────────────────────┐
+  │  middleware.ts  →  检查会话  →  未登录则跳转 /login             │
+  └────────────────────────────────────────────────────────────────┘
+       ↓ 已认证请求
+  ┌── API 路由 ──────────────────────────────────────────────────────┐
+  │  POST /api/checkout         →  创建 Stripe Session              │
+  │  POST /api/webhooks/stripe  →  验证签名  →  更新数据库           │
+  └────────────────────────────────────────────────────────────────┘
+       ↓                                       ↑ webhook POST
+  ┌── Prisma / PostgreSQL ──────────────┐   ┌── Stripe ────────────┐
+  │  User { id, email, customerId,      │   │  Checkout Session    │
+  │         subscriptionTier }          │   │  checkout.session    │
+  └─────────────────────────────────────┘   │     .completed       │
+                                            └──────────────────────┘
+```
+
 ```markdown title="system_prompt.md"
-扮演高级软件架构师的角色。为一款允许用户 [插入核心功能] 的 SaaS 应用程序生成详细的技术规范。 
+扮演高级软件架构师的角色。为一款 SaaS 任务管理应用生成详细的技术规范，该应用包含免费层（最多 5 个项目）和 Pro 层（无限项目 + AI 摘要）。
 
 该规范必须包含：
 1. 详细的数据模式 (PostgreSQL/Prisma 格式)。
@@ -40,7 +60,7 @@ import type { NextRequest } from 'next/server';
 import { authMiddleware } from './auth-config';
 
 export default authMiddleware((req) => {
-  const isDashboardRoute = req.nextUrl.pathname.arg.startsWith('/dashboard');
+  const isDashboardRoute = req.nextUrl.pathname.startsWith('/dashboard');
 
   if (isDashboardRoute && !req.auth) {
     return NextResponse.redirect(new URL('/login', req.url));
@@ -69,18 +89,22 @@ export async function POST(req: Request) {
   const body = await req.text();
   const sig = req.headers.get('stripe-signature')!;
 
-  let event;
-
+  let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
-    return NextResponse.json({ error: 'Webhook Error' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
+    // 使用创建 Checkout Session 时设置的 metadata.userId——绝不依赖 customer_details.email
+    const userId = session.metadata?.userId;
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing userId in metadata' }, { status: 400 });
+    }
     await db.user.update({
-      where: { email: session.customer_details?.email! },
+      where: { id: userId },
       data: { subscriptionTier: 'pro' },
     });
   }
@@ -103,7 +127,7 @@ import { useUser } from '@/hooks/use-user';
 export default function Dashboard() {
   const { user, isLoading } = useUser();
 
-  if (isLoading) return <div>加载中...</div>;
+  if (isLoading || !user) return <div>加载中...</div>;
 
   return (
     <div className="p-8">
@@ -130,23 +154,50 @@ function FeatureCard({ title, enabled }: { title: string; enabled: boolean }) {
 }
 ```
 
-## 端到端示例：从提示词到生产环境
+## 端到端示例：构建 Stripe 订阅流程
 
-本指南演示了如何使用 AI 助手，将一个项目从最初的想法迭代演进为功能完备的特性。
+```text title="端到端：五个 AI 辅助步骤"
+目标：在 Next.js SaaS 应用中实现完整的 Pro 订阅流程。
 
-```markdown title="project_evolution.md"
-### 第 1 步：初始 PRD 提示词
-**用户：** "为一款具有 Pro 层级的任务列表管理 SaaS 应用生成一份 PRD。"
-**AI：** [生成模式、端点和身份验证需求]
+── 第 1 步：生成结账路由 ─────────────────────────────────────────
+Prompt: "创建 POST /api/checkout。使用价格 ID 'price_pro_monthly' 创建
+         Stripe Checkout Session，mode='subscription'，并将当前用户的
+         数据库 ID 存入 session metadata。"
+输出：  /api/checkout/route.ts — 创建含 metadata: { userId } 的 Session
+        返回：{ url: "https://checkout.stripe.com/pay/cs_test_..." }
 
-### 第 2 步：实现功能
-**用户：** "基于提供的模式，编写 'Task' 和 'Subscription' 的 Prisma 模型。"
-**AI：** [输出 `schema.prisma` 代码]
+── 第 2 步：本地测试结账 ─────────────────────────────────────────
+操作：  curl -X POST http://localhost:3000/api/checkout
+结果：  302 跳转至 Stripe 托管结账页面 ✓
 
-### 第 3 步：优化逻辑
-**用户：** "现在，创建一个 Next.js API 路由来处理 Stripe Webhook，以更新订阅层级。"
-**AI：** [输出 Webhook 处理程序代码]
+── 第 3 步：生成 Webhook 处理程序 ───────────────────────────────
+Prompt: "创建 /api/webhooks/stripe。验证 Stripe 签名，处理
+         checkout.session.completed，使用 metadata.userId（非
+         customer_details.email）将 subscriptionTier 更新为 'pro'。"
+输出：  /api/webhooks/stripe/route.ts（见上方代码）
+
+── 第 4 步：本地测试 Webhook ────────────────────────────────────
+操作：  stripe listen --forward-to localhost:3000/api/webhooks/stripe
+        stripe trigger checkout.session.completed
+结果：  数据库记录更新：subscriptionTier = 'pro' ✓
+
+── 第 5 步：添加仪表板权限门禁 ──────────────────────────────────
+Prompt: "在 Dashboard.tsx 中添加 ProGate 组件。若 subscriptionTier
+         为 'free'，显示锁定状态和'升级到 Pro'按钮，而非高级功能内容。"
+输出：  ProGate 包裹 AI 洞察面板——免费用户看到升级引导
+
+最终结果：结账 → Webhook → 权限门禁 UI，五步完成。
 ```
+
+## 常见失败模式
+
+| 症状 | 可能原因 | 解决方案 |
+|---|---|---|
+| Webhook 抛出"记录未找到"或更新了错误用户 | 通过 `customer_details.email` 匹配用户——该字段可能为 null 或与数据库不一致 | 在创建 Checkout Session 时将 `userId` 写入 `metadata`；在 Webhook 中通过 `metadata.userId` 查询用户 |
+| `middleware.ts` 将已登录用户跳转到 /login | Auth Session 在 Edge Runtime 中不可用 | 确认你的认证提供商支持 Edge Runtime；NextAuth JWT 模式请使用 `getToken()` |
+| Dashboard 报错 `Cannot read properties of null (reading 'name')` | 会话过期后 `user` 为 null，但只对 `isLoading` 做了守卫 | 将守卫改为 `if (isLoading \|\| !user)` 再访问 user 属性 |
+| 生产环境 Webhook 每次都返回 400 | `STRIPE_WEBHOOK_SECRET` 使用了 CLI 的密钥而非 Dashboard 签名密钥 | 在 Stripe Dashboard 创建生产 Webhook 端点，将其签名密钥复制到环境变量 |
+| 取消订阅后 Pro 功能仍可访问 | 未处理 `customer.subscription.deleted` 事件 | 添加该事件的处理逻辑，将 `subscriptionTier` 重置为 `'free'` |
 
 ## 练习
 

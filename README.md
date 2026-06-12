@@ -26,7 +26,6 @@ The site is built with [Docusaurus](https://docusaurus.io/). All course content 
 | 11–14 | **AI Agents** | Tool calling · MCP integration · Multi-agent systems · Coding agents |
 | 15–17 | **Real Projects** | Build a SaaS app · Build an AI chat app · Build an agent platform |
 | 18–21 | **Advanced Topics** | RAG deep dive · Context engineering at scale · Coding agent architecture · Enterprise AI |
-| — | **Graduation Project** | Build your own AI coding agent |
 
 ---
 
@@ -238,7 +237,6 @@ MIT
 | 11–14 | **AI Agent** | 工具调用 · MCP 集成 · 多 Agent 系统 · 编程 Agent |
 | 15–17 | **实战项目** | 构建 SaaS 应用 · 构建 AI 聊天应用 · 构建 Agent 平台 |
 | 18–21 | **进阶主题** | RAG 深度解析 · 大规模上下文工程 · 编程 Agent 架构 · 企业级 AI |
-| — | **毕业项目** | 构建你自己的 AI 编程 Agent |
 
 ---
 
